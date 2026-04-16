@@ -19,7 +19,7 @@ jobs:
           sudo apt update
           sudo apt install -y cmake ninja-build clang python3 git
 
-      - name: Configure (official target)
+      - name: Configure
         run: |
           cmake -B build -G Ninja \
             -DDEFAULT_TARGET=tx12mk2 \
@@ -27,11 +27,13 @@ jobs:
             -DLUA_MODEL_SCRIPTS=YES \
             -DLUA_TELEMETRY_SCRIPTS=YES
 
-      - - name: Build firmware
-  run: cmake --build build --target firmware -j$(nproc)
+      - name: Build firmware
+        run: |
+          cmake --build build --target firmware -j$(nproc)
 
       - name: Show outputs
-        run: find build -name "*.bin"
+        run: |
+          find build -name "*.bin"
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
