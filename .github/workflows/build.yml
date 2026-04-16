@@ -27,8 +27,8 @@ jobs:
             -DLUA_MODEL_SCRIPTS=YES \
             -DLUA_TELEMETRY_SCRIPTS=YES
 
-      - name: Build
-        run: cmake --build build -j$(nproc)
+      - - name: Build firmware
+  run: cmake --build build --target firmware -j$(nproc)
 
       - name: Show outputs
         run: find build -name "*.bin"
