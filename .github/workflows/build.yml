@@ -1,0 +1,39 @@
+name: TX12 MK2 Lua Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout EdgeTX source
+        uses: actions/checkout@v4
+        with:
+          repository: EdgeTX/edgetx
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y cmake ninja-build clang git python3
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DPCB=TX12 \
+            -DPCB_TYPE=TX12MK2 \
+            -DLUA=YES \
+            -DLUA_MODEL_SCRIPTS=YES \
+            -DLUA_TELEMETRY_SCRIPTS=YES
+
+      - name: Build
+        run: |
+          cmake --build build -j$(nproc)
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: tx12mk2-lua
+          path: build/**/firmware*.bin
