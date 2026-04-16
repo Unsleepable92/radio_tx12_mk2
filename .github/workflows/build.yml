@@ -1,4 +1,4 @@
-name: TX12 MK2 Lua Build FIX
+name: TX12 MK2 Lua Build FINAL
 
 on:
   workflow_dispatch:
@@ -17,13 +17,12 @@ jobs:
       - name: Install deps
         run: |
           sudo apt update
-          sudo apt install -y cmake ninja-build clang git python3
+          sudo apt install -y cmake ninja-build clang python3 git
 
-      - name: Configure (correct EdgeTX path)
+      - name: Configure (official target)
         run: |
-          cmake -S radio -B build -G Ninja \
-            -DPCB=TX12 \
-            -DPCB_TYPE=TX12MK2 \
+          cmake -B build -G Ninja \
+            -DDEFAULT_TARGET=tx12mk2 \
             -DLUA=YES \
             -DLUA_MODEL_SCRIPTS=YES \
             -DLUA_TELEMETRY_SCRIPTS=YES
@@ -31,7 +30,7 @@ jobs:
       - name: Build
         run: cmake --build build -j$(nproc)
 
-      - name: Find firmware
+      - name: Show outputs
         run: find build -name "*.bin"
 
       - name: Upload firmware
