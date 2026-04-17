@@ -7,6 +7,15 @@ on:
 
 jobs:
   build:
+name: EdgeTX TX12 MK2 (DEBUG REAL TARGETS)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -33,56 +42,54 @@ jobs:
           cd edgetx
           git submodule update --init --recursive
 
-      - name: Show available radios (IMPORTANT DEBUG)
-        run: |
-          cd edgetx
-          cmake -B build -G Ninja -LH 2>/dev/null | grep -i -E "radio|board|tx12|pcb" || true
-
-      - name: Configure (FORCED RADIO TARGET)
+      - name: Configure firmware preset
         run: |
           cd edgetx
           cmake -S . -B build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi.cmake \
             -DCMAKE_BUILD_TYPE=Release \
-            -DPCB=TX12 \
-            -DPCB_TYPE=TX12MK2 \
-            -DRADIO_TX12=ON \
-            -DLUA=YES \
-            -DLUA_MODEL_SCRIPTS=YES \
-            -DLUA_TELEMETRY_SCRIPTS=YES
+            -S . \
+            -B build
 
-      - name: Build
+      - name: Show available build targets (IMPORTANT)
         run: |
           cd edgetx
-          cmake --build build -j$(nproc)
+          cmake --build build --target help || true
 
-      - name: DEBUG firmware output
+      - name: Build ALL possible firmware targets (debug)
         run: |
           cd edgetx
-          echo "=== BUILD OUTPUT ==="
-          find build -type f -exec ls -lh {} \; | sort -k5 -h | tail -n 30
+          cmake --build build -j$(nproc) || true
 
-      - name: Extract firmware
+      - name: Search all binaries
+        run: |
+          cd edgetx
+          echo "=== ALL BIN FILES ==="
+          find . -type f -name "*.bin" -exec ls -lh {} \;
+
+      - name: Extract largest firmware candidate
         run: |
           cd edgetx
           mkdir -p ../out
 
-          FW=$(find build -type f -iname "*firmware*" -o -iname "*tx12*" | grep -E "\.bin$" | head -n 1)
+          FW=$(find . -type f -name "*.bin" -exec ls -lh {} \; \
+            | sort -k5 -h | tail -n 1 | awk '{print $9}')
 
-          if [ -z "$FW" ]; then
-            echo "❌ No firmware found"
-            exit 1
-          fi
-
-          echo "Selected: $FW"
+          echo "Selected candidate: $FW"
           ls -lh "$FW"
 
           cp "$FW" ../out/firmware_TX12MK2.bin
 
-      - name: Verify final file
+      - name: Verify
         run: |
           ls -lh out/firmware_TX12MK2.bin
           file out/firmware_TX12MK2.bin
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: edgetx-tx12mk2-debug
+          path: out/firmware_TX12MK2.binin
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
