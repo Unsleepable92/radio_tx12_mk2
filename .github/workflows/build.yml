@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MK2 (FULL FIX TOOLCHAIN)
+name: EdgeTX TX12 MK2 (correct radio target build)
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install dependencies (INCLUDING ARM TOOLCHAIN)
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -24,11 +24,6 @@ jobs:
             gcc-arm-none-eabi \
             libnewlib-arm-none-eabi
 
-      - name: Verify toolchain
-        run: |
-          arm-none-eabi-gcc --version
-          arm-none-eabi-g++ --version
-
       - name: Clone EdgeTX
         run: |
           git clone --recursive https://github.com/EdgeTX/edgetx.git
@@ -38,34 +33,56 @@ jobs:
           cd edgetx
           git submodule update --init --recursive
 
-      - name: Configure firmware
+      - name: Show available radios (IMPORTANT DEBUG)
+        run: |
+          cd edgetx
+          cmake -B build -G Ninja -LH 2>/dev/null | grep -i -E "radio|board|tx12|pcb" || true
+
+      - name: Configure (FORCED RADIO TARGET)
         run: |
           cd edgetx
           cmake -S . -B build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
             -DPCB=TX12 \
             -DPCB_TYPE=TX12MK2 \
+            -DRADIO_TX12=ON \
             -DLUA=YES \
             -DLUA_MODEL_SCRIPTS=YES \
-            -DLUA_TELEMETRY_SCRIPTS=YES \
-            -DCMAKE_BUILD_TYPE=Release
+            -DLUA_TELEMETRY_SCRIPTS=YES
 
       - name: Build
         run: |
           cd edgetx
           cmake --build build -j$(nproc)
 
-      - name: Find firmware
+      - name: DEBUG firmware output
+        run: |
+          cd edgetx
+          echo "=== BUILD OUTPUT ==="
+          find build -type f -exec ls -lh {} \; | sort -k5 -h | tail -n 30
+
+      - name: Extract firmware
         run: |
           cd edgetx
           mkdir -p ../out
 
-          FW=$(find build -type f -iname "*tx12*" -o -iname "*.bin" | head -n 1)
+          FW=$(find build -type f -iname "*firmware*" -o -iname "*tx12*" | grep -E "\.bin$" | head -n 1)
 
-          echo "Firmware: $FW"
+          if [ -z "$FW" ]; then
+            echo "❌ No firmware found"
+            exit 1
+          fi
+
+          echo "Selected: $FW"
           ls -lh "$FW"
 
           cp "$FW" ../out/firmware_TX12MK2.bin
+
+      - name: Verify final file
+        run: |
+          ls -lh out/firmware_TX12MK2.bin
+          file out/firmware_TX12MK2.bin
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
