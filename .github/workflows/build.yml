@@ -1,16 +1,101 @@
-- name: Build TX12 firmware
-  run: |
-    cd edgetx
+name: EdgeTX TX12 (Stable CI Working)
 
-    mkdir build
-    cd build
+on:
+workflow_dispatch:
 
-    cmake .. \
-      -G "Unix Makefiles" \
-      -DPCB=TX12 \
-      -DLUA=YES \
-      -DLUA_MODEL_SCRIPTS=YES \
-      -DLUA_TELEMETRY_SCRIPTS=YES \
-      -DCMAKE_BUILD_TYPE=Release
+jobs:
+build:
+runs-on: ubuntu-latest
 
-    make -j$(nproc)
+```
+steps:
+  # =========================
+  # DEPENDENCIES
+  # =========================
+  - name: Install deps
+    run: |
+      sudo apt-get update
+      sudo apt-get install -y \
+        git \
+        cmake \
+        make \
+        python3 \
+        python3-pip \
+        gcc-arm-none-eabi \
+        libnewlib-arm-none-eabi \
+        build-essential \
+        wget \
+        unzip
+
+  # =========================
+  # CLONE STABLE EDGE TX
+  # =========================
+  - name: Clone EdgeTX stable
+    run: |
+      git clone --recursive --branch v2.9.0 https://github.com/EdgeTX/edgetx.git
+
+  - name: Init submodules
+    run: |
+      cd edgetx
+      git submodule update --init --recursive
+
+  # =========================
+  # BUILD (NO NINJA!)
+  # =========================
+  - name: Build TX12 firmware
+    run: |
+      cd edgetx
+
+      mkdir build
+      cd build
+
+      cmake .. \
+        -G "Unix Makefiles" \
+        -DPCB=TX12 \
+        -DLUA=YES \
+        -DLUA_MODEL_SCRIPTS=YES \
+        -DLUA_TELEMETRY_SCRIPTS=YES \
+        -DCMAKE_BUILD_TYPE=Release
+
+      make -j$(nproc)
+
+  # =========================
+  # FIND FIRMWARE
+  # =========================
+  - name: Find firmware
+    run: |
+      cd edgetx
+
+      echo "Searching firmware..."
+      find build -type f -name "*.bin" -exec ls -lh {} \;
+
+      FW=$(find build -type f -name "*.bin" | grep -i tx12 | head -n 1)
+
+      if [ -z "$FW" ]; then
+        echo "❌ Firmware not found"
+        exit 1
+      fi
+
+      echo "Found: $FW"
+
+      mkdir -p ../out
+      cp "$FW" ../out/firmware_tx12.bin
+
+  # =========================
+  # VERIFY
+  # =========================
+  - name: Verify firmware
+    run: |
+      ls -lh out/firmware_tx12.bin
+      file out/firmware_tx12.bin
+
+  # =========================
+  # ARTIFACT
+  # =========================
+  - name: Upload
+    uses: actions/upload-artifact@v4
+    with:
+      name: edgetx-tx12
+      path: out/firmw
+      are_tx12.bin
+```
