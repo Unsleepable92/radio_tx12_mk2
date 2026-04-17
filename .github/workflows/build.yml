@@ -1,4 +1,66 @@
-name: EdgeTX TX12 MK2 Build (stable)
+name: name: EdgeTX TX12 MK2 Build (official fetch)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            python3 \
+            git \
+            wget \
+            unzip
+
+      - name: Clone EdgeTX (official)
+        run: |
+          git clone --recursive https://github.com/EdgeTX/edgetx.git
+          cd edgetx
+          git submodule update --init --recursive
+
+      - name: Configure
+        run: |
+          cmake -S edgetx -B build -G Ninja \
+            -DPCB=TX12 \
+            -DPCB_TYPE=TX12MK2 \
+            -DLUA=YES \
+            -DLUA_MODEL_SCRIPTS=YES \
+            -DLUA_TELEMETRY_SCRIPTS=YES \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build -j$(nproc)
+
+      - name: Collect firmware
+        run: |
+          mkdir -p out
+
+          FW=$(find build -type f \( -name "*.bin" -o -name "*.fw" \) | head -n 1)
+
+          if [ -z "$FW" ]; then
+            echo "Firmware not found"
+            find build
+            exit 1
+          fi
+
+          cp "$FW" out/firmware_TX12MK2.bin
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: edgetx-tx12mk2
+          path: out/firmware_TX12MK2.bin TX12 MK2 Build (stable)
 
 on:
   workflow_dispatch:
