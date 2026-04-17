@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MK2 (FIXED CI)
+name: EdgeTX TX12 MK2 (FIXED CI FINAL)
 
 on:
   workflow_dispatch:
@@ -26,6 +26,9 @@ jobs:
             wget \
             unzip
 
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow
+
       # =========================
       # CLONE EDGE TX
       # =========================
@@ -39,7 +42,7 @@ jobs:
           git submodule update --init --recursive
 
       # =========================
-      # BUILD FIRMWARE
+      # CONFIGURE
       # =========================
       - name: Configure CMake
         run: |
@@ -54,13 +57,16 @@ jobs:
             -DLUA_MODEL_SCRIPTS=YES \
             -DLUA_TELEMETRY_SCRIPTS=YES
 
+      # =========================
+      # BUILD FIRMWARE
+      # =========================
       - name: Build firmware
         run: |
           cd edgetx/build
           cmake --build . --target firmware -j$(nproc)
 
       # =========================
-      # FIND FIRMWARE (ROBUST)
+      # FIND FIRMWARE
       # =========================
       - name: Find firmware
         run: |
@@ -68,10 +74,8 @@ jobs:
 
           echo "Searching firmware..."
 
-          # показать все bin (для дебага)
           find build -type f -name "*.bin" -exec ls -lh {} \;
 
-          # взять первый нормальный bin
           FW=$(find build -type f -name "*.bin" | head -n 1)
 
           if [ -z "$FW" ]; then
