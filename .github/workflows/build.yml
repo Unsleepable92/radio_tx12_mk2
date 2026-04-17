@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MK2 (FIXED CI FINAL)
+name: EdgeTX TX12 MK2 (FIXED BUILD)
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ jobs:
       # =========================
       # DEPENDENCIES
       # =========================
-      - name: Install dependencies
+      - name: Install deps
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -24,10 +24,9 @@ jobs:
             libnewlib-arm-none-eabi \
             build-essential \
             wget \
-            unzip
-
-          python3 -m pip install --upgrade pip
-          python3 -m pip install pillow lz4
+            unzip \
+            python3-pil \
+            python3-lz4
 
       # =========================
       # CLONE EDGE TX
@@ -42,9 +41,9 @@ jobs:
           git submodule update --init --recursive
 
       # =========================
-      # CONFIGURE
+      # BUILD
       # =========================
-      - name: Configure CMake
+      - name: Build TX12 MK2 firmware
         run: |
           cd edgetx
           mkdir build
@@ -52,18 +51,11 @@ jobs:
 
           cmake .. \
             -G "Unix Makefiles" \
-            -DCMAKE_BUILD_TYPE=Release \
+            -DPCB=TX12MK2 \
             -DLUA=YES \
-            -DLUA_MODEL_SCRIPTS=YES \
-            -DLUA_TELEMETRY_SCRIPTS=YES
+            -DCMAKE_BUILD_TYPE=Release
 
-      # =========================
-      # BUILD FIRMWARE
-      # =========================
-      - name: Build firmware
-        run: |
-          cd edgetx/build
-          cmake --build . --target firmware -j$(nproc)
+          make -j$(nproc)
 
       # =========================
       # FIND FIRMWARE
@@ -76,11 +68,10 @@ jobs:
 
           find build -type f -name "*.bin" -exec ls -lh {} \;
 
-          FW=$(find build -type f -name "*.bin" | head -n 1)
+          FW=$(find build -type f -name "*.bin" | grep -i tx12 | head -n 1)
 
           if [ -z "$FW" ]; then
             echo "❌ Firmware not found"
-            echo "Dumping build tree:"
             find build -type f | head -n 200
             exit 1
           fi
@@ -88,21 +79,21 @@ jobs:
           echo "✅ Found firmware: $FW"
 
           mkdir -p ../out
-          cp "$FW" ../out/firmware_tx12_mk2.bin
+          cp "$FW" ../out/firmware_tx12mk2.bin
 
       # =========================
       # VERIFY
       # =========================
       - name: Verify firmware
         run: |
-          ls -lh out/
-          file out/firmware_tx12_mk2.bin
+          ls -lh out/firmware_tx12mk2.bin
+          file out/firmware_tx12mk2.bin
 
       # =========================
-      # UPLOAD ARTIFACT
+      # UPLOAD
       # =========================
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: edgetx-tx12-mk2
-          path: out/firmware_tx12_mk2.bin
+          name: edgetx-tx12mk2
+          path: out/firmware_tx12mk2.bin
