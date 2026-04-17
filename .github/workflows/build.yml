@@ -1,9 +1,7 @@
-name: EdgeTX TX12 MK2 (Real CI via build-cli)
+name: EdgeTX TX12 (Stable CI Working)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
 
 jobs:
   build:
@@ -11,17 +9,17 @@ jobs:
 
     steps:
       # =========================
-      # SYSTEM DEPENDENCIES
+      # DEPENDENCIES
       # =========================
-      - name: Install system deps
+      - name: Install deps
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             git \
-            python3 \
-            python3-pip \
             cmake \
             ninja-build \
+            python3 \
+            python3-pip \
             gcc-arm-none-eabi \
             libnewlib-arm-none-eabi \
             build-essential \
@@ -29,11 +27,11 @@ jobs:
             unzip
 
       # =========================
-      # CLONE EDGE TX
+      # CLONE STABLE VERSION
       # =========================
-      - name: Clone EdgeTX
+      - name: Clone EdgeTX stable
         run: |
-          git clone --recursive https://github.com/EdgeTX/edgetx.git
+          git clone --recursive --branch v2.9.0 https://github.com/EdgeTX/edgetx.git
 
       - name: Init submodules
         run: |
@@ -41,69 +39,52 @@ jobs:
           git submodule update --init --recursive
 
       # =========================
-      # PYTHON BUILD ENV
+      # BUILD (WORKING METHOD)
       # =========================
-      - name: Install Python deps
-        run: |
-          cd edgetx
-          pip3 install --upgrade pip
-
-          # если есть requirements — ставим
-          if [ -f tools/requirements.txt ]; then
-            pip3 install -r tools/requirements.txt
-          fi
-
-      # =========================
-      # REAL BUILD ENTRYPOINT
-      # =========================
-      - name: Build firmware (REAL EdgeTX method)
+      - name: Build TX12 firmware
         run: |
           cd edgetx
 
-          if [ ! -f tools/build-cli.py ]; then
-            echo "❌ build-cli.py not found → wrong EdgeTX version"
-            exit 1
-          fi
+          mkdir build
+          cd build
 
-          python3 tools/build-cli.py \
-            --board tx12 \
-            --release \
-            --lua
+          cmake .. -G Ninja \
+            -DPCB=TX12 \
+            -DLUA=YES \
+            -DLUA_MODEL_SCRIPTS=YES \
+            -DLUA_TELEMETRY_SCRIPTS=YES \
+            -DCMAKE_BUILD_TYPE=Release
+
+          ninja -j$(nproc)
 
       # =========================
-      # FIND RESULT (NO GUESSING)
+      # EXTRACT FIRMWARE
       # =========================
-      - name: Locate firmware
+      - name: Find firmware
         run: |
           cd edgetx
 
-          echo "=== Searching firmware ==="
-          find . -type f -name "*.bin" -exec ls -lh {} \;
+          echo "Searching firmware..."
+          find build -type f -name "*.bin" -exec ls -lh {} \;
 
-          FW=$(find . -type f -name "*.bin" | grep -i tx12 | head -n 1)
+          FW=$(find build -type f -name "*.bin" | grep -i tx12 | head -n 1)
 
           if [ -z "$FW" ]; then
-            echo "❌ Firmware not produced"
+            echo "❌ Firmware not found"
             exit 1
           fi
 
-          echo "✅ Found: $FW"
+          echo "Found: $FW"
 
           mkdir -p ../out
           cp "$FW" ../out/firmware_tx12.bin
 
-      # =========================
-      # VERIFY
-      # =========================
-      - name: Verify firmware
+      - name: Verify
         run: |
           ls -lh out/firmware_tx12.bin
           file out/firmware_tx12.bin
 
-      # =========================
-      # ARTIFACT
-      # =========================
-      - name: Upload firmware
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: edgetx-tx12
