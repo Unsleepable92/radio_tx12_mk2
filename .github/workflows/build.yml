@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MK2 (SUPERBUILD FIX)
+name: EdgeTX Dev Pipeline (TX12 MK2)
 
 on:
   workflow_dispatch:
@@ -22,9 +22,11 @@ jobs:
             wget \
             unzip \
             gcc-arm-none-eabi \
-            libnewlib-arm-none-eabi
+            libnewlib-arm-none-eabi \
+            clang \
+            make
 
-      - name: Clone EdgeTX
+      - name: Clone EdgeTX (official)
         run: |
           git clone --recursive https://github.com/EdgeTX/edgetx.git
 
@@ -33,43 +35,77 @@ jobs:
           cd edgetx
           git submodule update --init --recursive
 
-      - name: Configure SUPERBUILD (IMPORTANT)
+      - name: Verify toolchain
+        run: |
+          arm-none-eabi-gcc --version
+
+      # =========================
+      # CONFIGURE (DEV STYLE)
+      # =========================
+      - name: Configure superbuild (EdgeTX dev style)
         run: |
           cd edgetx
+
           cmake -S . -B build -G Ninja \
-            -DHELI=NO \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi.cmake \
+            -DEDGETX_SUPERBUILD=ON \
+            -DPCB=TX12 \
+            -DPCB_TYPE=TX12MK2 \
             -DLUA=YES \
             -DLUA_MODEL_SCRIPTS=YES \
             -DLUA_TELEMETRY_SCRIPTS=YES \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DEDGETX_SUPERBUILD=ON
+            -Wno-dev
 
-      - name: Build SUPERBUILD
+      # =========================
+      # BUILD
+      # =========================
+      - name: Build (superbuild)
         run: |
           cd edgetx
-          cmake --build build -j$(nproc)
+          cmake --build build --parallel $(nproc)
 
-      - name: Find firmware (STRICT)
+      # =========================
+      # FIND REAL FIRMWARE (STRICT)
+      # =========================
+      - name: Locate firmware (strict filter)
         run: |
           cd edgetx
-          mkdir -p ../out
 
-          echo "Searching real firmware..."
+          echo "All build outputs (top 50 largest):"
+          find build -type f -name "*.bin" -exec ls -lh {} \; | sort -k5 -h | tail -n 50
 
-          find build -type f -name "*.bin" -exec ls -lh {} \;
+          echo "Searching TX12 firmware..."
 
-          FW=$(find build -type f -name "*.bin" | grep -i tx12 | head -n 1)
+          FW=$(find build -type f \
+            \( -iname "*tx12*.bin" -o -iname "*firmware*.bin" \) \
+            ! -iname "*bootloader*" \
+            | head -n 1)
 
           if [ -z "$FW" ]; then
-            echo "❌ NO TX12 firmware generated"
+            echo "❌ TX12 firmware NOT FOUND"
+            echo "Dumping full build tree..."
+            find build -type f | head -n 200
             exit 1
           fi
 
-          echo "Selected: $FW"
+          echo "✅ Found firmware: $FW"
           ls -lh "$FW"
 
+          mkdir -p ../out
           cp "$FW" ../out/firmware_TX12MK2.bin
 
+      # =========================
+      # VERIFY RESULT
+      # =========================
+      - name: Verify firmware
+        run: |
+          ls -lh out/firmware_TX12MK2.bin
+          file out/firmware_TX12MK2.bin
+
+      # =========================
+      # ARTIFACT
+      # =========================
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
