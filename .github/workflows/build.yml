@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MK2 Official Build
+name: EdgeTX TX12 MK2 (preset build)
 
 on:
   workflow_dispatch:
@@ -26,48 +26,47 @@ jobs:
         run: |
           git clone --recursive https://github.com/EdgeTX/edgetx.git
 
-      - name: Setup build system
+      - name: Init submodules
         run: |
           cd edgetx
           git submodule update --init --recursive
 
-      - name: Configure (official target method)
+      - name: List available presets
         run: |
           cd edgetx
-          cmake -B build -G Ninja \
-            -DHELI=NO \
-            -DLUA=YES \
-            -DLUA_MODEL_SCRIPTS=YES \
-            -DLUA_TELEMETRY_SCRIPTS=YES \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DTARGET=tx12
+          cmake --list-presets
+
+      - name: Configure (TX12 MK2 preset)
+        run: |
+          cd edgetx
+          cmake --preset tx12
 
       - name: Build
         run: |
           cd edgetx
-          cmake --build build -j$(nproc)
+          cmake --build --preset tx12 -j$(nproc)
 
-      - name: Find real firmware (strict filter)
+      - name: Find firmware
         run: |
           cd edgetx
           mkdir -p ../out
 
           echo "Searching firmware..."
 
-          FW=$(find build -type f -iname "*tx12*.bin" | head -n 1)
+          FW=$(find build -type f -iname "*.bin" | grep -E "tx12|edgetx|firmware" | head -n 1)
 
           if [ -z "$FW" ]; then
-            echo "No tx12 firmware found, dumping build output:"
+            echo "❌ No firmware found"
             find build -type f -name "*.bin" -exec ls -lh {} \;
             exit 1
           fi
 
-          echo "Selected: $FW"
+          echo "✅ Firmware: $FW"
           ls -lh "$FW"
 
           cp "$FW" ../out/firmware_TX12MK2.bin
 
-      - name: Verify size
+      - name: Verify
         run: |
           ls -lh out/firmware_TX12MK2.bin
 
