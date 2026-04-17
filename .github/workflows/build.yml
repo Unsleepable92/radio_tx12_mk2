@@ -14,14 +14,16 @@ jobs:
           repository: EdgeTX/edgetx
           fetch-depth: 1
 
-      - name: Install deps
+      - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y cmake ninja-build clang python3 git
+          sudo apt install -y cmake ninja-build clang python3 git wget
 
-      - name: Install ARM toolchain
+      - name: Install ARM Toolchain 14.2
         run: |
-          sudo apt install -y gcc-arm-none-eabi
+          wget https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
+          tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
+          echo "$PWD/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin" >> $GITHUB_PATH
 
       - name: Configure
         run: |
