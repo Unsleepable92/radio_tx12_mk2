@@ -13,6 +13,7 @@ jobs:
         with:
           repository: EdgeTX/edgetx
           fetch-depth: 1
+          submodules: recursive
 
       - name: Install dependencies
         run: |
