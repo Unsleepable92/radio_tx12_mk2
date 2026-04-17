@@ -1,6 +1,9 @@
 name: EdgeTX TX12 MK2 (OFFICIAL BUILD SYSTEM)
 
 on:
+name: EdgeTX TX12 MK2 (OFFICIAL BUILD SYSTEM)
+
+on:
   workflow_dispatch:
   push:
     branches: [ main ]
@@ -81,5 +84,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
+          name: edgetx-tx12mk2
+          path: out/firmware_TX12MK2.binh:
           name: edgetx-tx12mk2
           path: out/firmware_TX12MK2.bin
