@@ -1,9 +1,3 @@
-name: EdgeTX TX12 MK2 (OFFICIAL BUILD SYSTEM)
-
-on:
-h:
-          name: edgetx-tx12mk2
-          path: out/firmware_TX12MK2.bin
 name: EdgeTX Official CI-style Build (TX12 MK2)
 
 on:
