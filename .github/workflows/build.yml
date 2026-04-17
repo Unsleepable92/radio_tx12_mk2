@@ -1,4 +1,4 @@
-name: name: EdgeTX TX12 MK2 Build (official fetch)
+name: EdgeTX TX12 MK2 Build (official fetch)
 
 on:
   workflow_dispatch:
@@ -55,85 +55,6 @@ jobs:
           fi
 
           cp "$FW" out/firmware_TX12MK2.bin
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: edgetx-tx12mk2
-          path: out/firmware_TX12MK2.bin TX12 MK2 Build (stable)
-
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            ninja-build \
-            python3 \
-            git \
-            wget \
-            unzip
-
-      - name: Find EdgeTX source safely
-        run: |
-          echo "Searching for CMakeLists.txt..."
-
-          # ищем папку, где реально лежит CMakeLists.txt EdgeTX
-          SRC=$(find . -type f -name "CMakeLists.txt" | grep -i -E "edgetx|radio|firmware" | head -n 1 | sed 's#/CMakeLists.txt##')
-
-          if [ -z "$SRC" ]; then
-            echo "❌ ERROR: Cannot find EdgeTX source"
-            echo "Dumping repo structure:"
-            ls -R | head -n 200
-            exit 1
-          fi
-
-          echo "SOURCE=$SRC" >> $GITHUB_ENV
-          echo "✅ Found source: $SRC"
-
-      - name: Configure
-        run: |
-          cmake -S $SOURCE -B build -G Ninja \
-            -DPCB=TX12 \
-            -DPCB_TYPE=TX12MK2 \
-            -DLUA=YES \
-            -DLUA_MODEL_SCRIPTS=YES \
-            -DLUA_TELEMETRY_SCRIPTS=YES \
-            -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build
-        run: |
-          cmake --build build -j$(nproc)
-
-      - name: Collect firmware
-        run: |
-          mkdir -p out
-
-          FW=$(find build -type f \( -name "*.bin" -o -name "*.fw" \) | head -n 1)
-
-          if [ -z "$FW" ]; then
-            echo "❌ Firmware not found"
-            find build
-            exit 1
-          fi
-
-          cp "$FW" out/firmware_TX12MK2.bin
-          echo "✅ Firmware copied: $FW"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
