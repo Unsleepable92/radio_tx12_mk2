@@ -1,6 +1,12 @@
 name: EdgeTX TX12 MK2 (OFFICIAL BUILD SYSTEM)
 
 on:
+h:
+          name: edgetx-tx12mk2
+          path: out/firmware_TX12MK2.bin
+name: EdgeTX Official CI-style Build (TX12 MK2)
+
+on:
   workflow_dispatch:
   push:
     branches: [ main ]
@@ -9,77 +15,86 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        board:
+          - tx12
+
     steps:
+      - name: Checkout EdgeTX
+        uses: actions/checkout@v4
+        with:
+          repository: EdgeTX/edgetx
+          submodules: recursive
+
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git \
-            python3 \
-            python3-pip \
-            gcc-arm-none-eabi \
-            libnewlib-arm-none-eabi \
             build-essential \
             cmake \
             ninja-build \
+            python3 \
+            python3-pip \
+            git \
             wget \
-            unzip
+            unzip \
+            gcc-arm-none-eabi \
+            libnewlib-arm-none-eabi \
+            doxygen
 
-      - name: Clone EdgeTX
+      - name: Verify toolchain
         run: |
-          git clone --recursive https://github.com/EdgeTX/edgetx.git
-
-      - name: Init submodules
-        run: |
-          cd edgetx
-          git submodule update --init --recursive
-
-      - name: Install python build tools
-        run: |
-          pip3 install -U pip
-          pip3 install setuptools wheel
+          arm-none-eabi-gcc --version
 
       # =========================
-      # OFFICIAL BUILD ENTRYPOINT
+      # SUPERBUILD (OFFICIAL STYLE)
       # =========================
-      - name: Run EdgeTX build system
+      - name: Configure superbuild
         run: |
-          cd edgetx
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DEDGETX_SUPERBUILD=ON \
+            -DPCB=${{ matrix.board }} \
+            -DLUA=ON \
+            -DLUA_MODEL_SCRIPTS=ON \
+            -DLUA_TELEMETRY_SCRIPTS=ON
 
-          python3 build.py \
-            -b tx12 \
-            -t release
-
-      # =========================
-      # FIND OUTPUT (NO GUESSING)
-      # =========================
-      - name: Locate firmware
+      - name: Build firmware
         run: |
-          cd edgetx
+          cmake --build build -j$(nproc)
 
-          echo "Searching final firmware..."
+      # =========================
+      # FIND OUTPUT (SAFE METHOD)
+      # =========================
+      - name: Collect artifacts
+        run: |
+          mkdir -p out
 
-          find . -type f -name "*.bin" -exec ls -lh {} \;
+          echo "=== Build tree summary ==="
+          find build -type f -name "*.bin" -exec ls -lh {} \;
 
-          FW=$(find . -type f -name "*.bin" | grep -i tx12 | head -n 1)
+          FW=$(find build -type f -iname "*tx12*" -o -iname "*firmware*" | grep -v bootloader | head -n 1)
 
           if [ -z "$FW" ]; then
-            echo "❌ Firmware NOT produced by build.py"
+            echo "❌ No firmware produced"
+            echo "Dumping build structure:"
+            find build -type f | head -n 200
             exit 1
           fi
 
-          echo "✅ Firmware: $FW"
+          echo "✅ Firmware found: $FW"
+          ls -lh "$FW"
 
-          mkdir -p ../out
-          cp "$FW" ../out/firmware_TX12MK2.bin
+          cp "$FW" out/firmware_${{ matrix.board }}.bin
 
-      - name: Verify
+      - name: Verify firmware
         run: |
-          ls -lh out/firmware_TX12MK2.bin
-          file out/firmware_TX12MK2.bin
+          ls -lh out/
+          file out/firmware_${{ matrix.board }}.bin
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: edgetx-tx12mk2
-          path: out/firmware_TX12MK2.bin
+          name: edgetx-${{ matrix.board }}
+          path: out/firmware_${{ matrix.board }}.bin
