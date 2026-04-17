@@ -14,6 +14,13 @@ on:
   push:
     branches: [ main ]
 
+name: EdgeTX TX12 MK2 Debug Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,53 +49,41 @@ jobs:
           cd edgetx
           git submodule update --init --recursive
 
-      - name: Configure firmware preset
+      - name: Configure
         run: |
           cd edgetx
           cmake -S . -B build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi.cmake \
-            -DCMAKE_BUILD_TYPE=Release \
-            -S . \
-            -B build
+            -DCMAKE_BUILD_TYPE=Release
 
-      - name: Show available build targets (IMPORTANT)
+      - name: Build
         run: |
           cd edgetx
-          cmake --build build --target help || true
+          cmake --build build -j$(nproc)
 
-      - name: Build ALL possible firmware targets (debug)
+      - name: Show all build outputs
         run: |
           cd edgetx
-          cmake --build build -j$(nproc) || true
+          find build -type f -exec ls -lh {} \; | sort -k5 -h | tail -n 50
 
-      - name: Search all binaries
-        run: |
-          cd edgetx
-          echo "=== ALL BIN FILES ==="
-          find . -type f -name "*.bin" -exec ls -lh {} \;
-
-      - name: Extract largest firmware candidate
+      - name: Extract largest binary
         run: |
           cd edgetx
           mkdir -p ../out
 
-          FW=$(find . -type f -name "*.bin" -exec ls -lh {} \; \
+          FW=$(find build -type f -name "*.bin" -exec ls -lh {} \; \
             | sort -k5 -h | tail -n 1 | awk '{print $9}')
 
-          echo "Selected candidate: $FW"
+          echo "Selected: $FW"
           ls -lh "$FW"
 
-          cp "$FW" ../out/firmware_TX12MK2.bin
-
-      - name: Verify
-        run: |
-          ls -lh out/firmware_TX12MK2.bin
-          file out/firmware_TX12MK2.bin
+          cp "$FW" ../out/firmware.bin
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: edgetx-tx12mk2-debug
+          name: firmware
+          path: out/firmware.bintx12mk2-debug
           path: out/firmware_TX12MK2.binin
 
       - name: Upload artifact
