@@ -15,14 +15,14 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt update
           sudo apt install -y cmake ninja-build clang python3 git wget python3-pip
 
-      - name: Install Python deps
+      - name: Install Python dependencies
         run: |
-          pip3 install pillow pydantic
+          pip3 install pillow pydantic lz4
 
       - name: Install ARM Toolchain 14.2
         run: |
@@ -42,7 +42,7 @@ jobs:
         run: |
           cmake --build build --target firmware -j$(nproc)
 
-      - name: Show outputs
+      - name: Show firmware files
         run: |
           find build -name "*.bin"
 
