@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MK2 Build (official fetch)
+name: EdgeTX TX12 MK2 Build (correct firmware extraction)
 
 on:
   workflow_dispatch:
@@ -22,11 +22,9 @@ jobs:
             wget \
             unzip
 
-      - name: Clone EdgeTX (official)
+      - name: Clone EdgeTX
         run: |
           git clone --recursive https://github.com/EdgeTX/edgetx.git
-          cd edgetx
-          git submodule update --init --recursive
 
       - name: Configure
         run: |
@@ -42,19 +40,30 @@ jobs:
         run: |
           cmake --build build -j$(nproc)
 
-      - name: Collect firmware
+      - name: Debug firmware files
+        run: |
+          echo "=== ALL BIN FILES ==="
+          find build -type f -name "*.bin" -exec ls -lh {} \;
+
+      - name: Extract correct firmware
         run: |
           mkdir -p out
 
-          FW=$(find build -type f \( -name "*.bin" -o -name "*.fw" \) | head -n 1)
+          FW=$(find build -type f -iname "*tx12*.bin" | head -n 1)
 
           if [ -z "$FW" ]; then
-            echo "Firmware not found"
-            find build
-            exit 1
+            echo "Trying fallback search..."
+            FW=$(find build -type f -iname "*.bin" | grep -v "bootloader" | head -n 1)
           fi
 
+          echo "Selected firmware: $FW"
+          ls -lh "$FW"
+
           cp "$FW" out/firmware_TX12MK2.bin
+
+      - name: Show final size
+        run: |
+          ls -lh out/firmware_TX12MK2.bin
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
