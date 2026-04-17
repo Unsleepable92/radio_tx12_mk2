@@ -1,4 +1,4 @@
-name: EdgeTX Real Dev CI (Correct TX12 + Lua)
+name: EdgeTX TX12 MK2 (Real CI via build-cli)
 
 on:
   workflow_dispatch:
@@ -9,32 +9,27 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        board: [tx12]
-
     steps:
       # =========================
-      # DEPENDENCIES (DEV MATCH)
+      # SYSTEM DEPENDENCIES
       # =========================
-      - name: Install dependencies
+      - name: Install system deps
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             git \
-            cmake \
-            ninja-build \
             python3 \
             python3-pip \
+            cmake \
+            ninja-build \
             gcc-arm-none-eabi \
             libnewlib-arm-none-eabi \
             build-essential \
-            rsync \
             wget \
             unzip
 
       # =========================
-      # CLONE (FULL EDGE TX)
+      # CLONE EDGE TX
       # =========================
       - name: Clone EdgeTX
         run: |
@@ -46,76 +41,70 @@ jobs:
           git submodule update --init --recursive
 
       # =========================
-      # SUPERBUILD CONFIG (REAL CI STYLE)
+      # PYTHON BUILD ENV
       # =========================
-      - name: Configure EdgeTX superbuild
+      - name: Install Python deps
+        run: |
+          cd edgetx
+          pip3 install --upgrade pip
+
+          # если есть requirements — ставим
+          if [ -f tools/requirements.txt ]; then
+            pip3 install -r tools/requirements.txt
+          fi
+
+      # =========================
+      # REAL BUILD ENTRYPOINT
+      # =========================
+      - name: Build firmware (REAL EdgeTX method)
         run: |
           cd edgetx
 
-          cmake -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DEDGETX_SUPERBUILD=ON \
-            -DPCB=${{ matrix.board }} \
-            -DLUA=ON \
-            -DLUA_MODEL_SCRIPTS=ON \
-            -DLUA_TELEMETRY_SCRIPTS=ON \
-            -DHELI=OFF
-
-      # =========================
-      # BUILD
-      # =========================
-      - name: Build firmware
-        run: |
-          cd edgetx
-          cmake --build build -j$(nproc)
-
-      # =========================
-      # VERIFY LUA SUPPORT
-      # =========================
-      - name: Verify Lua presence
-        run: |
-          cd edgetx
-
-          echo "Checking Lua artifacts..."
-
-          find build -type f | grep -i lua || true
-
-          echo "Checking scripts folders..."
-          find build -type d | grep -i script || true
-
-      # =========================
-      # EXTRACT FIRMWARE
-      # =========================
-      - name: Extract firmware
-        run: |
-          cd edgetx
-          mkdir -p ../out
-
-          FW=$(find build -type f -name "*.bin" | grep -i tx12 | head -n 1)
-
-          if [ -z "$FW" ]; then
-            echo "❌ No firmware produced"
+          if [ ! -f tools/build-cli.py ]; then
+            echo "❌ build-cli.py not found → wrong EdgeTX version"
             exit 1
           fi
 
-          echo "Firmware: $FW"
-          ls -lh "$FW"
-
-          cp "$FW" ../out/firmware_tx12_lua.bin
+          python3 tools/build-cli.py \
+            --board tx12 \
+            --release \
+            --lua
 
       # =========================
-      # VERIFY FINAL OUTPUT
+      # FIND RESULT (NO GUESSING)
+      # =========================
+      - name: Locate firmware
+        run: |
+          cd edgetx
+
+          echo "=== Searching firmware ==="
+          find . -type f -name "*.bin" -exec ls -lh {} \;
+
+          FW=$(find . -type f -name "*.bin" | grep -i tx12 | head -n 1)
+
+          if [ -z "$FW" ]; then
+            echo "❌ Firmware not produced"
+            exit 1
+          fi
+
+          echo "✅ Found: $FW"
+
+          mkdir -p ../out
+          cp "$FW" ../out/firmware_tx12.bin
+
+      # =========================
+      # VERIFY
       # =========================
       - name: Verify firmware
         run: |
-          ls -lh out/
-          file out/firmware_tx12_lua.bin
+          ls -lh out/firmware_tx12.bin
+          file out/firmware_tx12.bin
 
       # =========================
-      # UPLOAD
+      # ARTIFACT
       # =========================
-      - name: Upload artifact
+      - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: edgetx-tx12-lua
-          path: out/firmware_tx12_lua.bin
+          name: edgetx-tx12
+          path: out/firmware_tx12.bin
