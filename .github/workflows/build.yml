@@ -1,4 +1,4 @@
-name: EdgeTX Dev Pipeline (TX12 MK2)
+name: EdgeTX TX12 MK2 (OFFICIAL BUILD SYSTEM)
 
 on:
   workflow_dispatch:
@@ -14,19 +14,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            git \
+            python3 \
+            python3-pip \
+            gcc-arm-none-eabi \
+            libnewlib-arm-none-eabi \
             build-essential \
             cmake \
             ninja-build \
-            python3 \
-            git \
             wget \
-            unzip \
-            gcc-arm-none-eabi \
-            libnewlib-arm-none-eabi \
-            clang \
-            make
+            unzip
 
-      - name: Clone EdgeTX (official)
+      - name: Clone EdgeTX
         run: |
           git clone --recursive https://github.com/EdgeTX/edgetx.git
 
@@ -35,77 +34,50 @@ jobs:
           cd edgetx
           git submodule update --init --recursive
 
-      - name: Verify toolchain
+      - name: Install python build tools
         run: |
-          arm-none-eabi-gcc --version
+          pip3 install -U pip
+          pip3 install setuptools wheel
 
       # =========================
-      # CONFIGURE (DEV STYLE)
+      # OFFICIAL BUILD ENTRYPOINT
       # =========================
-      - name: Configure superbuild (EdgeTX dev style)
-        run: |
-          cd edgetx
-
-          cmake -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi.cmake \
-            -DEDGETX_SUPERBUILD=ON \
-            -DPCB=TX12 \
-            -DPCB_TYPE=TX12MK2 \
-            -DLUA=YES \
-            -DLUA_MODEL_SCRIPTS=YES \
-            -DLUA_TELEMETRY_SCRIPTS=YES \
-            -Wno-dev
-
-      # =========================
-      # BUILD
-      # =========================
-      - name: Build (superbuild)
-        run: |
-          cd edgetx
-          cmake --build build --parallel $(nproc)
-
-      # =========================
-      # FIND REAL FIRMWARE (STRICT)
-      # =========================
-      - name: Locate firmware (strict filter)
+      - name: Run EdgeTX build system
         run: |
           cd edgetx
 
-          echo "All build outputs (top 50 largest):"
-          find build -type f -name "*.bin" -exec ls -lh {} \; | sort -k5 -h | tail -n 50
+          python3 build.py \
+            -b tx12 \
+            -t release
 
-          echo "Searching TX12 firmware..."
+      # =========================
+      # FIND OUTPUT (NO GUESSING)
+      # =========================
+      - name: Locate firmware
+        run: |
+          cd edgetx
 
-          FW=$(find build -type f \
-            \( -iname "*tx12*.bin" -o -iname "*firmware*.bin" \) \
-            ! -iname "*bootloader*" \
-            | head -n 1)
+          echo "Searching final firmware..."
+
+          find . -type f -name "*.bin" -exec ls -lh {} \;
+
+          FW=$(find . -type f -name "*.bin" | grep -i tx12 | head -n 1)
 
           if [ -z "$FW" ]; then
-            echo "❌ TX12 firmware NOT FOUND"
-            echo "Dumping full build tree..."
-            find build -type f | head -n 200
+            echo "❌ Firmware NOT produced by build.py"
             exit 1
           fi
 
-          echo "✅ Found firmware: $FW"
-          ls -lh "$FW"
+          echo "✅ Firmware: $FW"
 
           mkdir -p ../out
           cp "$FW" ../out/firmware_TX12MK2.bin
 
-      # =========================
-      # VERIFY RESULT
-      # =========================
-      - name: Verify firmware
+      - name: Verify
         run: |
           ls -lh out/firmware_TX12MK2.bin
           file out/firmware_TX12MK2.bin
 
-      # =========================
-      # ARTIFACT
-      # =========================
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
