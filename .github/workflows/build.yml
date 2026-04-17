@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MK2 (correct firmware preset)
+name: EdgeTX TX12 MK2 (FULL FIX TOOLCHAIN)
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install dependencies
+      - name: Install dependencies (INCLUDING ARM TOOLCHAIN)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -20,7 +20,14 @@ jobs:
             python3 \
             git \
             wget \
-            unzip
+            unzip \
+            gcc-arm-none-eabi \
+            libnewlib-arm-none-eabi
+
+      - name: Verify toolchain
+        run: |
+          arm-none-eabi-gcc --version
+          arm-none-eabi-g++ --version
 
       - name: Clone EdgeTX
         run: |
@@ -31,44 +38,34 @@ jobs:
           cd edgetx
           git submodule update --init --recursive
 
-      - name: Configure firmware preset (REAL WAY)
+      - name: Configure firmware
         run: |
           cd edgetx
-          cmake --preset firmware \
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi.cmake \
             -DPCB=TX12 \
             -DPCB_TYPE=TX12MK2 \
             -DLUA=YES \
             -DLUA_MODEL_SCRIPTS=YES \
-            -DLUA_TELEMETRY_SCRIPTS=YES
+            -DLUA_TELEMETRY_SCRIPTS=YES \
+            -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: |
           cd edgetx
           cmake --build build -j$(nproc)
 
-      - name: Find real firmware
+      - name: Find firmware
         run: |
           cd edgetx
           mkdir -p ../out
 
-          echo "Searching firmware..."
+          FW=$(find build -type f -iname "*tx12*" -o -iname "*.bin" | head -n 1)
 
-          FW=$(find build -type f -iname "*.bin" | grep -E "tx12|firmware|edgetx" | head -n 1)
-
-          if [ -z "$FW" ]; then
-            echo "❌ No firmware found"
-            find build -type f -name "*.bin" -exec ls -lh {} \;
-            exit 1
-          fi
-
-          echo "✅ Selected firmware: $FW"
+          echo "Firmware: $FW"
           ls -lh "$FW"
 
           cp "$FW" ../out/firmware_TX12MK2.bin
-
-      - name: Verify result
-        run: |
-          ls -lh out/firmware_TX12MK2.bin
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
