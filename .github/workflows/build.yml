@@ -1,22 +1,3 @@
-name: EdgeTX TX12 (FINAL WORKING CI)
-
-on:
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      # =========================
-      # DEPENDENCIES
-      # =========================
-      - name: Install deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git \
-            cmake \
 name: EdgeTX TX12 MK2 (FIXED CI)
 
 on:
@@ -120,9 +101,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: edgetx-tx12-mk2
-          path: out/firmware_tx12_mk2.bin===============
-      - name: Upload firmware
-        uses: actions/upload-artifact@v4
-        with:
-          name: edgetx-tx12
-          path: out/firmware_tx12.bin
+          path: out/firmware_tx12_mk2.bin
