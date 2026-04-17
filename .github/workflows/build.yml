@@ -1,53 +1,57 @@
-name: TX12 MK2 Lua Build FINAL
+name: EdgeTX TX12 MK2 Build
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout EdgeTX
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          repository: EdgeTX/edgetx
-          fetch-depth: 1
           submodules: recursive
 
-      - name: Install system dependencies
+      - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt install -y cmake ninja-build clang python3 git wget python3-pip
-
-      - name: Install Python dependencies
-        run: |
-          pip3 install pillow pydantic lz4
-
-      - name: Install ARM Toolchain 14.2
-        run: |
-          wget https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
-          tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
-          echo "$PWD/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin" >> $GITHUB_PATH
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            python3 \
+            git \
+            wget \
+            unzip
 
       - name: Configure
         run: |
           cmake -B build -G Ninja \
-            -DDEFAULT_TARGET=tx12mk2 \
+            -DPCB=TX12 \
+            -DPCB_TYPE=TX12MK2 \
             -DLUA=YES \
             -DLUA_MODEL_SCRIPTS=YES \
-            -DLUA_TELEMETRY_SCRIPTS=YES
+            -DLUA_TELEMETRY_SCRIPTS=YES \
+            -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build firmware
+      - name: Build
         run: |
-          cmake --build build --target firmware -j$(nproc)
+          cmake --build build -j$(nproc)
 
-      - name: Show firmware files
+      - name: Find firmware
         run: |
-          find build -name "*.bin"
+          find build -name "*.bin" -o -name "*.fw" -o -name "*firmware*"
 
-      - name: Upload firmware
+      - name: Rename firmware
+        run: |
+          mkdir -p out
+          cp $(find build -name "*.bin" | head -n 1) out/firmware_TX12MK2.bin
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tx12mk2-lua
-          path: build/**/*.bin
+          name: edgetx-tx12mk2
+          path: out/firmware_TX12MK2.bin
