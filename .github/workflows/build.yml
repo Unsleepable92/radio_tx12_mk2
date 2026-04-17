@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MK2 (preset build)
+name: EdgeTX TX12 MK2 (correct firmware preset)
 
 on:
   workflow_dispatch:
@@ -31,29 +31,29 @@ jobs:
           cd edgetx
           git submodule update --init --recursive
 
-      - name: List available presets
+      - name: Configure firmware preset (REAL WAY)
         run: |
           cd edgetx
-          cmake --list-presets
-
-      - name: Configure (TX12 MK2 preset)
-        run: |
-          cd edgetx
-          cmake --preset tx12
+          cmake --preset firmware \
+            -DPCB=TX12 \
+            -DPCB_TYPE=TX12MK2 \
+            -DLUA=YES \
+            -DLUA_MODEL_SCRIPTS=YES \
+            -DLUA_TELEMETRY_SCRIPTS=YES
 
       - name: Build
         run: |
           cd edgetx
-          cmake --build --preset tx12 -j$(nproc)
+          cmake --build build -j$(nproc)
 
-      - name: Find firmware
+      - name: Find real firmware
         run: |
           cd edgetx
           mkdir -p ../out
 
           echo "Searching firmware..."
 
-          FW=$(find build -type f -iname "*.bin" | grep -E "tx12|edgetx|firmware" | head -n 1)
+          FW=$(find build -type f -iname "*.bin" | grep -E "tx12|firmware|edgetx" | head -n 1)
 
           if [ -z "$FW" ]; then
             echo "❌ No firmware found"
@@ -61,12 +61,12 @@ jobs:
             exit 1
           fi
 
-          echo "✅ Firmware: $FW"
+          echo "✅ Selected firmware: $FW"
           ls -lh "$FW"
 
           cp "$FW" ../out/firmware_TX12MK2.bin
 
-      - name: Verify
+      - name: Verify result
         run: |
           ls -lh out/firmware_TX12MK2.bin
 
