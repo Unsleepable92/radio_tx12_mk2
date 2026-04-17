@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MK2 Build (correct firmware extraction)
+name: EdgeTX TX12 MK2 Official Build
 
 on:
   workflow_dispatch:
@@ -26,42 +26,48 @@ jobs:
         run: |
           git clone --recursive https://github.com/EdgeTX/edgetx.git
 
-      - name: Configure
+      - name: Setup build system
         run: |
-          cmake -S edgetx -B build -G Ninja \
-            -DPCB=TX12 \
-            -DPCB_TYPE=TX12MK2 \
+          cd edgetx
+          git submodule update --init --recursive
+
+      - name: Configure (official target method)
+        run: |
+          cd edgetx
+          cmake -B build -G Ninja \
+            -DHELI=NO \
             -DLUA=YES \
             -DLUA_MODEL_SCRIPTS=YES \
             -DLUA_TELEMETRY_SCRIPTS=YES \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTARGET=tx12
 
       - name: Build
         run: |
+          cd edgetx
           cmake --build build -j$(nproc)
 
-      - name: Debug firmware files
+      - name: Find real firmware (strict filter)
         run: |
-          echo "=== ALL BIN FILES ==="
-          find build -type f -name "*.bin" -exec ls -lh {} \;
+          cd edgetx
+          mkdir -p ../out
 
-      - name: Extract correct firmware
-        run: |
-          mkdir -p out
+          echo "Searching firmware..."
 
           FW=$(find build -type f -iname "*tx12*.bin" | head -n 1)
 
           if [ -z "$FW" ]; then
-            echo "Trying fallback search..."
-            FW=$(find build -type f -iname "*.bin" | grep -v "bootloader" | head -n 1)
+            echo "No tx12 firmware found, dumping build output:"
+            find build -type f -name "*.bin" -exec ls -lh {} \;
+            exit 1
           fi
 
-          echo "Selected firmware: $FW"
+          echo "Selected: $FW"
           ls -lh "$FW"
 
-          cp "$FW" out/firmware_TX12MK2.bin
+          cp "$FW" ../out/firmware_TX12MK2.bin
 
-      - name: Show final size
+      - name: Verify size
         run: |
           ls -lh out/firmware_TX12MK2.bin
 
