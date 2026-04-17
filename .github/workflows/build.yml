@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MK2 (FIXED BUILD)
+name: EdgeTX TX12 MK2 (FIX FINAL FINDER)
 
 on:
   workflow_dispatch:
@@ -29,7 +29,7 @@ jobs:
             python3-lz4
 
       # =========================
-      # CLONE EDGE TX
+      # CLONE
       # =========================
       - name: Clone EdgeTX
         run: |
@@ -43,10 +43,10 @@ jobs:
       # =========================
       # BUILD
       # =========================
-      - name: Build TX12 MK2 firmware
+      - name: Build TX12 MK2
         run: |
           cd edgetx
-          mkdir build
+          mkdir -p build
           cd build
 
           cmake .. \
@@ -58,25 +58,27 @@ jobs:
           make -j$(nproc)
 
       # =========================
-      # FIND FIRMWARE
+      # FIND FIRMWARE (FIXED)
       # =========================
       - name: Find firmware
         run: |
           cd edgetx
 
-          echo "Searching firmware..."
-
+          echo "Searching ALL .bin files..."
           find build -type f -name "*.bin" -exec ls -lh {} \;
 
-          FW=$(find build -type f -name "*.bin" | grep -i tx12 | head -n 1)
+          echo "Selecting newest firmware..."
+
+          FW=$(find build -type f -name "*.bin" -printf "%T@ %p\n" \
+            | sort -nr | head -n 1 | cut -d' ' -f2-)
 
           if [ -z "$FW" ]; then
-            echo "❌ Firmware not found"
+            echo "❌ Firmware not found anywhere"
             find build -type f | head -n 200
             exit 1
           fi
 
-          echo "✅ Found firmware: $FW"
+          echo "✅ Selected firmware: $FW"
 
           mkdir -p ../out
           cp "$FW" ../out/firmware_tx12mk2.bin
@@ -86,7 +88,7 @@ jobs:
       # =========================
       - name: Verify firmware
         run: |
-          ls -lh out/firmware_tx12mk2.bin
+          ls -lh out/
           file out/firmware_tx12mk2.bin
 
       # =========================
