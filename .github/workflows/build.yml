@@ -1,4 +1,4 @@
-name: EdgeTX Official CI-style Build (TX12 MK2)
+name: EdgeTX Dev CI (REAL Superbuild Style)
 
 on:
   workflow_dispatch:
@@ -9,86 +9,116 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        board:
-          - tx12
-
     steps:
-      - name: Checkout EdgeTX
-        uses: actions/checkout@v4
-        with:
-          repository: EdgeTX/edgetx
-          submodules: recursive
-
+      # =========================
+      # DEPENDENCIES
+      # =========================
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential \
+            git \
             cmake \
             ninja-build \
             python3 \
             python3-pip \
-            git \
-            wget \
-            unzip \
             gcc-arm-none-eabi \
             libnewlib-arm-none-eabi \
-            doxygen
+            build-essential \
+            wget \
+            unzip \
+            rsync
 
-      - name: Verify toolchain
+      # =========================
+      # CLONE EDGE TX
+      # =========================
+      - name: Clone EdgeTX (full)
+        run: |
+          git clone --recursive https://github.com/EdgeTX/edgetx.git
+
+      - name: Init submodules
+        run: |
+          cd edgetx
+          git submodule update --init --recursive
+
+      # =========================
+      # VERIFY TOOLCHAIN
+      # =========================
+      - name: Check ARM toolchain
         run: |
           arm-none-eabi-gcc --version
 
       # =========================
-      # SUPERBUILD (OFFICIAL STYLE)
+      # REAL EDGE TX SUPERBUILD ENTRY
       # =========================
-      - name: Configure superbuild
+      - name: Configure (EdgeTX superbuild correct mode)
         run: |
+          cd edgetx
+
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DEDGETX_SUPERBUILD=ON \
-            -DPCB=${{ matrix.board }} \
+            -DHELI=OFF \
             -DLUA=ON \
             -DLUA_MODEL_SCRIPTS=ON \
             -DLUA_TELEMETRY_SCRIPTS=ON
 
-      - name: Build firmware
+      # =========================
+      # BUILD FULL GRAPH
+      # =========================
+      - name: Build full EdgeTX graph
         run: |
-          cmake --build build -j$(nproc)
+          cd edgetx
+          cmake --build build --parallel $(nproc)
 
       # =========================
-      # FIND OUTPUT (SAFE METHOD)
+      # IMPORTANT: CHECK GENERATED BOARDS
       # =========================
-      - name: Collect artifacts
+      - name: Inspect generated firmware targets
         run: |
-          mkdir -p out
+          cd edgetx
 
-          echo "=== Build tree summary ==="
+          echo "=== Searching firmware outputs ==="
           find build -type f -name "*.bin" -exec ls -lh {} \;
 
-          FW=$(find build -type f -iname "*tx12*" -o -iname "*firmware*" | grep -v bootloader | head -n 1)
+          echo "=== Looking for TX12 related outputs ==="
+          find build -type f | grep -i tx12 || true
+
+      # =========================
+      # EXTRACT LARGEST VALID FIRMWARE
+      # =========================
+      - name: Extract firmware safely
+        run: |
+          cd edgetx
+          mkdir -p ../out
+
+          FW=$(find build -type f -name "*.bin" -exec ls -lh {} \; \
+            | awk '$5 ~ /K|M/ {print $9}' \
+            | tail -n 1)
 
           if [ -z "$FW" ]; then
-            echo "❌ No firmware produced"
-            echo "Dumping build structure:"
-            find build -type f | head -n 200
+            echo "❌ No firmware generated at all"
             exit 1
           fi
 
-          echo "✅ Firmware found: $FW"
+          echo "Selected firmware: $FW"
           ls -lh "$FW"
 
-          cp "$FW" out/firmware_${{ matrix.board }}.bin
+          cp "$FW" ../out/firmware.bin
 
+      # =========================
+      # VERIFY RESULT
+      # =========================
       - name: Verify firmware
         run: |
-          ls -lh out/
-          file out/firmware_${{ matrix.board }}.bin
+          ls -lh out/firmware.bin
+          file out/firmware.bin
 
+      # =========================
+      # ARTIFACT
+      # =========================
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: edgetx-${{ matrix.board }}
-          path: out/firmware_${{ matrix.board }}.bin
+          name: edgetx-firmware
+          path: out/firmware.bin
