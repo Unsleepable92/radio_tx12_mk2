@@ -1,4 +1,4 @@
-name: EdgeTX TX12 (Stable CI Working)
+name: EdgeTX TX12 (FINAL WORKING CI)
 
 on:
   workflow_dispatch:
@@ -8,6 +8,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # =========================
+      # DEPENDENCIES
+      # =========================
       - name: Install deps
         run: |
           sudo apt-get update
@@ -23,6 +26,9 @@ jobs:
             wget \
             unzip
 
+      # =========================
+      # CLONE EDGE TX (STABLE)
+      # =========================
       - name: Clone EdgeTX stable
         run: |
           git clone --recursive --branch v2.9.0 https://github.com/EdgeTX/edgetx.git
@@ -32,6 +38,9 @@ jobs:
           cd edgetx
           git submodule update --init --recursive
 
+      # =========================
+      # BUILD FIRMWARE
+      # =========================
       - name: Build TX12 firmware
         run: |
           cd edgetx
@@ -42,6 +51,7 @@ jobs:
           cmake .. \
             -G "Unix Makefiles" \
             -DPCB=TX12 \
+            -DPCBREV=TX12 \
             -DLUA=YES \
             -DLUA_MODEL_SCRIPTS=YES \
             -DLUA_TELEMETRY_SCRIPTS=YES \
@@ -49,23 +59,42 @@ jobs:
 
           make -j$(nproc)
 
+      # =========================
+      # FIND FIRMWARE
+      # =========================
       - name: Find firmware
         run: |
           cd edgetx
 
+          echo "Searching firmware..."
           find build -type f -name "*.bin" -exec ls -lh {} \;
 
           FW=$(find build -type f -name "*.bin" | grep -i tx12 | head -n 1)
 
           if [ -z "$FW" ]; then
-            echo "Firmware not found"
+            echo "❌ Firmware not found"
+            echo "Dumping build tree:"
+            find build -type f | head -n 100
             exit 1
           fi
+
+          echo "✅ Found firmware: $FW"
 
           mkdir -p ../out
           cp "$FW" ../out/firmware_tx12.bin
 
-      - name: Upload
+      # =========================
+      # VERIFY
+      # =========================
+      - name: Verify firmware
+        run: |
+          ls -lh out/firmware_tx12.bin
+          file out/firmware_tx12.bin
+
+      # =========================
+      # UPLOAD ARTIFACT
+      # =========================
+      - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
           name: edgetx-tx12
