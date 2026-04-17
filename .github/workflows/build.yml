@@ -18,7 +18,11 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y cmake ninja-build clang python3 git wget
+          sudo apt install -y cmake ninja-build clang python3 git wget python3-pip
+
+      - name: Install Python deps
+        run: |
+          pip3 install pillow pydantic
 
       - name: Install ARM Toolchain 14.2
         run: |
