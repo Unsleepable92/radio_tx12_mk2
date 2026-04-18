@@ -1,4 +1,4 @@
-name: Build EdgeTX TX12 MK2
+name: Build EdgeTX TX12 MK2 ELRS
 
 on:
   workflow_dispatch:
@@ -22,11 +22,10 @@ jobs:
           ninja-build
         pip3 install lz4
 
-    - name: Clone EdgeTX (correct version)
+    - name: Clone EdgeTX
       run: |
-        git clone https://github.com/EdgeTX/edgetx.git
+        git clone --depth 1 https://github.com/EdgeTX/edgetx.git
         cd edgetx
-        git checkout v2.12.0
         git submodule update --init --recursive
 
     - name: Configure
@@ -35,7 +34,8 @@ jobs:
         mkdir build
         cd build
         cmake .. \
-          -DPCB=TX12MK2 \
+          -DPCB=TX12 \
+          -DINTERNAL_MODULE=ELRS \
           -DLUA=YES \
           -DCMAKE_BUILD_TYPE=Release
 
@@ -44,22 +44,16 @@ jobs:
         cd edgetx/build
         cmake --build . --target firmware -j$(nproc)
 
-    - name: Find firmware
-      run: |
-        cd edgetx
-        echo "Searching firmware..."
-        find build -type f -name "*.bin" -size +1000k
-
     - name: Copy firmware
       run: |
         cd edgetx
         mkdir output
         FILE=$(find build -type f -name "*.bin" -size +1000k | head -n 1)
         echo "Found: $FILE"
-        cp "$FILE" output/firmware_tx12mk2.bin
+        cp "$FILE" output/firmware_tx12_elrs.bin
 
     - name: Upload firmware
       uses: actions/upload-artifact@v4
       with:
-        name: EdgeTX_TX12MK2_Firmware
-        path: edgetx/output/firmware_tx12mk2.bin
+        name: EdgeTX_TX12_ELRS_Firmware
+        path: edgetx/output/firmware_tx12_elrs.bin
