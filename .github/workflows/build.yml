@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MK2 (FIX FINAL FINDER)
+name: EdgeTX TX12 MK2 BUILD FIXED
 
 on:
   workflow_dispatch:
@@ -8,28 +8,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       # =========================
       # DEPENDENCIES
       # =========================
-      - name: Install deps
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             git \
             cmake \
             make \
-            python3 \
-            python3-pip \
             gcc-arm-none-eabi \
             libnewlib-arm-none-eabi \
             build-essential \
+            python3 \
+            python3-pip \
             wget \
             unzip \
             python3-pil \
             python3-lz4
 
       # =========================
-      # CLONE
+      # CLONE EDGE TX
       # =========================
       - name: Clone EdgeTX
         run: |
@@ -41,9 +42,9 @@ jobs:
           git submodule update --init --recursive
 
       # =========================
-      # BUILD
+      # CONFIGURE + BUILD
       # =========================
-      - name: Build TX12 MK2
+      - name: Configure & build TX12 MK2
         run: |
           cd edgetx
           mkdir -p build
@@ -58,33 +59,37 @@ jobs:
           make -j$(nproc)
 
       # =========================
-      # FIND FIRMWARE (FIXED)
+      # FIND REAL FIRMWARE (IMPORTANT FIX)
       # =========================
-      - name: Find firmware
+      - name: Find firmware (REAL ONLY)
         run: |
           cd edgetx
 
-          echo "Searching ALL .bin files..."
+          echo "Searching real EdgeTX firmware (>1MB)..."
+
+          # показываем всё для отладки
           find build -type f -name "*.bin" -exec ls -lh {} \;
 
-          echo "Selecting newest firmware..."
+          echo "Filtering valid firmware..."
 
-          FW=$(find build -type f -name "*.bin" -printf "%T@ %p\n" \
-            | sort -nr | head -n 1 | cut -d' ' -f2-)
+          FW=$(find build -type f -name "*.bin" -size +1000k | head -n 1)
 
           if [ -z "$FW" ]; then
-            echo "❌ Firmware not found anywhere"
-            find build -type f | head -n 200
+            echo "❌ REAL firmware not found"
+
+            echo "All build artifacts:"
+            find build -type f -exec ls -lh {} \; | head -n 200
+
             exit 1
           fi
 
-          echo "✅ Selected firmware: $FW"
+          echo "✅ Firmware selected: $FW"
 
           mkdir -p ../out
           cp "$FW" ../out/firmware_tx12mk2.bin
 
       # =========================
-      # VERIFY
+      # VERIFY OUTPUT
       # =========================
       - name: Verify firmware
         run: |
@@ -92,7 +97,7 @@ jobs:
           file out/firmware_tx12mk2.bin
 
       # =========================
-      # UPLOAD
+      # UPLOAD ARTIFACT
       # =========================
       - name: Upload firmware
         uses: actions/upload-artifact@v4
