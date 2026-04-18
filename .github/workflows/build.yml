@@ -22,10 +22,11 @@ jobs:
           ninja-build
         pip3 install lz4
 
-    - name: Clone EdgeTX
+    - name: Clone EdgeTX (correct version)
       run: |
-        git clone --depth 1 https://github.com/EdgeTX/edgetx.git
+        git clone https://github.com/EdgeTX/edgetx.git
         cd edgetx
+        git checkout v2.12.0
         git submodule update --init --recursive
 
     - name: Configure
