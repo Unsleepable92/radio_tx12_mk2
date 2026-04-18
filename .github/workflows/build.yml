@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MK2 BUILD FIXED
+name: Build EdgeTX TX12 MK2
 
 on:
   workflow_dispatch:
@@ -8,99 +8,57 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Checkout
+      uses: actions/checkout@v4
 
-      # =========================
-      # DEPENDENCIES
-      # =========================
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git \
-            cmake \
-            make \
-            gcc-arm-none-eabi \
-            libnewlib-arm-none-eabi \
-            build-essential \
-            python3 \
-            python3-pip \
-            wget \
-            unzip \
-            python3-pil \
-            python3-lz4
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          git cmake build-essential \
+          gcc-arm-none-eabi g++-arm-none-eabi \
+          libnewlib-arm-none-eabi \
+          python3 python3-pip \
+          ninja-build
+        pip3 install lz4
 
-      # =========================
-      # CLONE EDGE TX
-      # =========================
-      - name: Clone EdgeTX
-        run: |
-          git clone --recursive --branch v2.9.0 https://github.com/EdgeTX/edgetx.git
+    - name: Clone EdgeTX
+      run: |
+        git clone --depth 1 https://github.com/EdgeTX/edgetx.git
+        cd edgetx
+        git submodule update --init --recursive
 
-      - name: Init submodules
-        run: |
-          cd edgetx
-          git submodule update --init --recursive
+    - name: Configure
+      run: |
+        cd edgetx
+        mkdir build
+        cd build
+        cmake .. \
+          -DPCB=TX12MK2 \
+          -DLUA=YES \
+          -DCMAKE_BUILD_TYPE=Release
 
-      # =========================
-      # CONFIGURE + BUILD
-      # =========================
-      - name: Configure & build TX12 MK2
-        run: |
-          cd edgetx
-          mkdir -p build
-          cd build
+    - name: Build firmware
+      run: |
+        cd edgetx/build
+        cmake --build . --target firmware -j$(nproc)
 
-          cmake .. \
-            -G "Unix Makefiles" \
-            -DPCB=TX12MK2 \
-            -DLUA=YES \
-            -DCMAKE_BUILD_TYPE=Release
+    - name: Find firmware
+      run: |
+        cd edgetx
+        echo "Searching firmware..."
+        find build -type f -name "*.bin" -size +1000k
 
-          make -j$(nproc)
+    - name: Copy firmware
+      run: |
+        cd edgetx
+        mkdir output
+        FILE=$(find build -type f -name "*.bin" -size +1000k | head -n 1)
+        echo "Found: $FILE"
+        cp "$FILE" output/firmware_tx12mk2.bin
 
-      # =========================
-      # FIND REAL FIRMWARE (IMPORTANT FIX)
-      # =========================
-      - name: Find firmware (REAL ONLY)
-        run: |
-          cd edgetx
-
-          echo "Searching real EdgeTX firmware (>1MB)..."
-
-          # показываем всё для отладки
-          find build -type f -name "*.bin" -exec ls -lh {} \;
-
-          echo "Filtering valid firmware..."
-
-          FW=$(find build -type f -name "*.bin" -size +1000k | head -n 1)
-
-          if [ -z "$FW" ]; then
-            echo "❌ REAL firmware not found"
-
-            echo "All build artifacts:"
-            find build -type f -exec ls -lh {} \; | head -n 200
-
-            exit 1
-          fi
-
-          echo "✅ Firmware selected: $FW"
-
-          mkdir -p ../out
-          cp "$FW" ../out/firmware_tx12mk2.bin
-
-      # =========================
-      # VERIFY OUTPUT
-      # =========================
-      - name: Verify firmware
-        run: |
-          ls -lh out/
-          file out/firmware_tx12mk2.bin
-
-      # =========================
-      # UPLOAD ARTIFACT
-      # =========================
-      - name: Upload firmware
-        uses: actions/upload-artifact@v4
-        with:
-          name: edgetx-tx12mk2
-          path: out/firmware_tx12mk2.bin
+    - name: Upload firmware
+      uses: actions/upload-artifact@v4
+      with:
+        name: EdgeTX_TX12MK2_Firmware
+        path: edgetx/output/firmware_tx12mk2.bin
