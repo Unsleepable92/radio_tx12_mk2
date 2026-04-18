@@ -1,59 +1,53 @@
-name: Build EdgeTX TX12 MK2 ELRS
+name: Build EdgeTX TX12MK2
 
 on:
-  workflow_dispatch:
+workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+build:
+runs-on: ubuntu-latest
 
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+```
+steps:
+  - name: Install dependencies
+    run: |
+      sudo apt update
+      sudo apt install -y \
+        git cmake build-essential \
+        gcc-arm-none-eabi binutils-arm-none-eabi \
+        libnewlib-arm-none-eabi \
+        python3 python3-pip
+      pip3 install lz4
 
-    - name: Install dependencies
-      run: |
-        sudo apt update
-        sudo apt install -y \
-          git cmake build-essential \
-          gcc-arm-none-eabi \
-          libnewlib-arm-none-eabi \
-          python3 python3-pip \
-          ninja-build
-        pip3 install lz4
+  - name: Clone EdgeTX (exact version)
+    run: |
+      git clone https://github.com/EdgeTX/edgetx.git
+      cd edgetx
+      git checkout d982f5fc
 
-    - name: Clone EdgeTX
-      run: |
-        git clone --depth 1 https://github.com/EdgeTX/edgetx.git
-        cd edgetx
-        git submodule update --init --recursive
+  - name: Verify target exists
+    run: |
+      cd edgetx/radio/src/targets
+      ls
 
-    - name: Configure
-      run: |
-        cd edgetx
-        mkdir build
-        cd build
-        cmake .. \
-          -DPCB=TX12 \
-          -DINTERNAL_MODULE=ELRS \
-          -DLUA=YES \
-          -DCMAKE_BUILD_TYPE=Release
+  - name: Build firmware
+    run: |
+      cd edgetx
+      mkdir build
+      cd build
+      cmake .. -DPCB=tx12mk2 -DLUA=YES -DCMAKE_BUILD_TYPE=Release
+      make firmware -j$(nproc)
 
-    - name: Build firmware
-      run: |
-        cd edgetx/build
-        cmake --build . --target firmware -j$(nproc)
+  - name: Find firmware
+    run: |
+      cd edgetx/build
+      echo "Searching firmware..."
+      find . -name "*.bin" -size +500k
 
-    - name: Copy firmware
-      run: |
-        cd edgetx
-        mkdir output
-        FILE=$(find build -type f -name "*.bin" -size +1000k | head -n 1)
-        echo "Found: $FILE"
-        cp "$FILE" output/firmware_tx12_elrs.bin
-
-    - name: Upload firmware
-      uses: actions/upload-artifact@v4
-      with:
-        name: EdgeTX_TX12_ELRS_Firmware
-        path: edgetx/output/firmware_tx12_elrs.bin
+  - name: Upload firmware
+    uses: actions/upload-artifact@v4
+    with:
+      name: firmware_tx12mk2
+      path: edgetx/build/**/*.
+      bin
+```
