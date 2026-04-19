@@ -1,4 +1,4 @@
-name: Build EdgeTX TX12MK2
+name: Build EdgeTX TX12 MKII Lua Telemetry
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout EdgeTX (stable release)
+      - name: Checkout EdgeTX
         uses: actions/checkout@v4
         with:
           repository: EdgeTX/edgetx
@@ -22,21 +22,27 @@ jobs:
             gcc-arm-none-eabi \
             binutils-arm-none-eabi \
             libnewlib-arm-none-eabi \
-            python3 \
-            python3-pip \
-            cmake \
             build-essential \
-            git
+            cmake \
+            git \
+            python3 \
+            python3-pip
 
           pip3 install lz4
 
-      - name: Configure
+      - name: Configure build
         run: |
           mkdir build
           cd build
           cmake .. \
-            -DPCB=TX12 \
-            -DLUA=YES \
+            -DRADIO=tx12_mk2 \
+            -DLUA=ON \
+            -DLUA_MODEL_SCRIPTS=ON \
+            -DWIDGETS=OFF \
+            -DTELEMETRY_LOG=OFF \
+            -DDEBUG=OFF \
+            -DVOICE=ON \
+            -DSOUND=ON \
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build firmware
@@ -44,13 +50,13 @@ jobs:
           cd build
           make -j$(nproc) firmware
 
-      - name: Find firmware
+      - name: Locate firmware
         run: |
-          echo "Searching firmware..."
-          find build -name "*.bin" -size +500k
+          echo "Firmware files:"
+          find build -name "*.bin" -type f -size +300k
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: edgetx-tx12mk2
+          name: edgetx-tx12mk2-lua
           path: build/**/*.bin
