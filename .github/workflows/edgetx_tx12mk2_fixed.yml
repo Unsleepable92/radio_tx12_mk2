@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MKII Stable Lua Build (v2.12)
+name: EdgeTX TX12 MKII Lua Stable Build (v2.12)
 
 on:
   workflow_dispatch:
@@ -8,13 +8,15 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      TOOLCHAIN_DIR: ${{ github.workspace }}/toolchain
+      WORKSPACE: ${{ github.workspace }}
       BUILD_DIR: ${{ github.workspace }}/build
+      TOOLCHAIN_DIR: ${{ github.workspace }}/toolchain
+      TOOLCHAIN_VER: arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi
 
     steps:
 
       # =========================
-      # CLEAN WORKSPACE (ANTI FUTURE FAIL)
+      # CLEAN ENVIRONMENT (ANTI STATE BUGS)
       # =========================
       - name: Clean workspace
         run: |
@@ -24,7 +26,7 @@ jobs:
           mkdir -p $TOOLCHAIN_DIR
 
       # =========================
-      # CHECKOUT (LOCKED VERSION)
+      # CHECKOUT (SHALLOW + SAFE)
       # =========================
       - name: Checkout EdgeTX
         uses: actions/checkout@v4
@@ -35,27 +37,27 @@ jobs:
           fetch-depth: 1
 
       # =========================
-      # TOOLCHAIN (PINNED + STABLE PATH)
+      # TOOLCHAIN (FIXED + NO CD DEPENDENCY)
       # =========================
       - name: Install ARM GCC 14.2.rel1
         run: |
           sudo apt update
           sudo apt install -y wget xz-utils ca-certificates
 
-          cd $TOOLCHAIN_DIR
+          wget -q https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/${TOOLCHAIN_VER}.tar.xz -O toolchain.tar.xz
 
-          wget -q https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
+          tar -xf toolchain.tar.xz -C $TOOLCHAIN_DIR
 
-          tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
+          TOOLCHAIN_PATH=$TOOLCHAIN_DIR/$TOOLCHAIN_VER/bin
 
-          echo "$TOOLCHAIN_DIR/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin" >> $GITHUB_PATH
+          echo $TOOLCHAIN_PATH >> $GITHUB_PATH
 
-          export PATH="$TOOLCHAIN_DIR/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin:$PATH"
+          export PATH=$TOOLCHAIN_PATH:$PATH
 
           arm-none-eabi-gcc --version
 
       # =========================
-      # PYTHON (LOCKED DEPENDENCIES)
+      # PYTHON DEPENDENCIES
       # =========================
       - name: Install Python deps
         run: |
@@ -63,25 +65,28 @@ jobs:
           pip3 install --no-cache-dir lz4
 
       # =========================
-      # VERIFY TARGET EXISTS (FAIL FAST)
+      # VALIDATE TARGET (FAIL FAST SAFETY)
       # =========================
       - name: Validate TX12 MKII target
         run: |
+          if [ ! -d "radio/src/targets" ]; then
+            echo "ERROR: radio/src/targets missing"
+            exit 1
+          fi
+
           if [ ! -d "radio/src/targets/tx12_mk2" ]; then
             echo "ERROR: tx12_mk2 target not found"
             echo "Available targets:"
-            ls radio/src/targets || true
+            ls radio/src/targets
             exit 1
           fi
 
       # =========================
-      # CONFIGURE (CLEAN + NO CACHE LEAKS)
+      # CONFIGURE (CLEAN BUILD, NO CACHE LEAKS)
       # =========================
       - name: Configure build
         run: |
-          cd $BUILD_DIR
-
-          cmake .. \
+          cmake -S . -B $BUILD_DIR \
             -DRADIO=tx12_mk2 \
             -DLUA=ON \
             -DLUA_MODEL_SCRIPTS=ON \
@@ -94,31 +99,29 @@ jobs:
             -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF
 
       # =========================
-      # BUILD (NO PARALLEL RACE ISSUES)
+      # BUILD (NO PARALLEL RISK REDUCTION)
       # =========================
       - name: Build firmware
         run: |
-          cd $BUILD_DIR
-          make firmware
+          cmake --build $BUILD_DIR --target firmware
 
       # =========================
-      # HARD OUTPUT CHECK
+      # VERIFY OUTPUT (STRICT CHECK)
       # =========================
-      - name: Find firmware output
+      - name: Verify firmware output
         run: |
-          echo "Searching firmware binaries..."
-
           FILES=$(find $BUILD_DIR -type f -name "*.bin")
 
           if [ -z "$FILES" ]; then
-            echo "ERROR: No firmware .bin found"
+            echo "ERROR: firmware .bin not generated"
             exit 1
           fi
 
+          echo "Firmware generated:"
           echo "$FILES"
 
       # =========================
-      # ARTIFACT UPLOAD (SAFE PATH)
+      # UPLOAD ARTIFACT
       # =========================
       - name: Upload firmware
         uses: actions/upload-artifact@v4
