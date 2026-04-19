@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MKII Lua Build (v2.12)
+name: EdgeTX TX12 MKII Stable Lua Build (v2.12)
 
 on:
   workflow_dispatch:
@@ -7,52 +7,79 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      TOOLCHAIN_DIR: ${{ github.workspace }}/toolchain
+      BUILD_DIR: ${{ github.workspace }}/build
+
     steps:
+
+      # =========================
+      # CLEAN WORKSPACE (ANTI FUTURE FAIL)
+      # =========================
+      - name: Clean workspace
+        run: |
+          rm -rf $BUILD_DIR
+          rm -rf $TOOLCHAIN_DIR
+          mkdir -p $BUILD_DIR
+          mkdir -p $TOOLCHAIN_DIR
+
+      # =========================
+      # CHECKOUT (LOCKED VERSION)
+      # =========================
       - name: Checkout EdgeTX
         uses: actions/checkout@v4
         with:
           repository: EdgeTX/edgetx
           ref: v2.12.0
           submodules: recursive
+          fetch-depth: 1
 
       # =========================
-      # ARM TOOLCHAIN FIX (CRITICAL)
+      # TOOLCHAIN (PINNED + STABLE PATH)
       # =========================
-      - name: Install ARM GNU Toolchain 14.2.rel1
+      - name: Install ARM GCC 14.2.rel1
         run: |
           sudo apt update
-          sudo apt install -y wget xz-utils
+          sudo apt install -y wget xz-utils ca-certificates
 
-          wget https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
+          cd $TOOLCHAIN_DIR
+
+          wget -q https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
 
           tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
 
-          echo "$PWD/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin" >> $GITHUB_PATH
+          echo "$TOOLCHAIN_DIR/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin" >> $GITHUB_PATH
+
+          export PATH="$TOOLCHAIN_DIR/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin:$PATH"
 
           arm-none-eabi-gcc --version
 
       # =========================
-      # BUILD DEPENDENCIES
+      # PYTHON (LOCKED DEPENDENCIES)
       # =========================
-      - name: Install build tools
+      - name: Install Python deps
         run: |
-          sudo apt update
-          sudo apt install -y \
-            build-essential \
-            cmake \
-            git \
-            python3 \
-            python3-pip
-
-          pip3 install lz4
+          sudo apt install -y python3 python3-pip
+          pip3 install --no-cache-dir lz4
 
       # =========================
-      # CONFIGURE BUILD
+      # VERIFY TARGET EXISTS (FAIL FAST)
       # =========================
-      - name: Configure EdgeTX
+      - name: Validate TX12 MKII target
         run: |
-          mkdir build
-          cd build
+          if [ ! -d "radio/src/targets/tx12_mk2" ]; then
+            echo "ERROR: tx12_mk2 target not found"
+            echo "Available targets:"
+            ls radio/src/targets || true
+            exit 1
+          fi
+
+      # =========================
+      # CONFIGURE (CLEAN + NO CACHE LEAKS)
+      # =========================
+      - name: Configure build
+        run: |
+          cd $BUILD_DIR
 
           cmake .. \
             -DRADIO=tx12_mk2 \
@@ -63,29 +90,39 @@ jobs:
             -DDEBUG=OFF \
             -DVOICE=ON \
             -DSOUND=ON \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF
 
       # =========================
-      # BUILD FIRMWARE
+      # BUILD (NO PARALLEL RACE ISSUES)
       # =========================
       - name: Build firmware
         run: |
-          cd build
-          make -j$(nproc) firmware
+          cd $BUILD_DIR
+          make firmware
 
       # =========================
-      # FIND OUTPUT
+      # HARD OUTPUT CHECK
       # =========================
-      - name: Locate firmware
+      - name: Find firmware output
         run: |
-          echo "=== BUILT FILES ==="
-          find build -name "*.bin" -type f -size +200k
+          echo "Searching firmware binaries..."
+
+          FILES=$(find $BUILD_DIR -type f -name "*.bin")
+
+          if [ -z "$FILES" ]; then
+            echo "ERROR: No firmware .bin found"
+            exit 1
+          fi
+
+          echo "$FILES"
 
       # =========================
-      # UPLOAD ARTIFACT
+      # ARTIFACT UPLOAD (SAFE PATH)
       # =========================
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: edgetx-tx12mk2-lua-v2.12
-          path: build/**/*.bin
+          name: edgetx-tx12mk2-v2.12-lua-stable
+          path: |
+            build/**/*.bin
