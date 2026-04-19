@@ -1,4 +1,4 @@
-name: Build EdgeTX TX12 MKII Lua Telemetry
+name: EdgeTX TX12 MKII Lua Build (v2.12)
 
 on:
   workflow_dispatch:
@@ -15,13 +15,29 @@ jobs:
           ref: v2.12.0
           submodules: recursive
 
-      - name: Install dependencies
+      # =========================
+      # ARM TOOLCHAIN FIX (CRITICAL)
+      # =========================
+      - name: Install ARM GNU Toolchain 14.2.rel1
+        run: |
+          sudo apt update
+          sudo apt install -y wget xz-utils
+
+          wget https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
+
+          tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
+
+          echo "$PWD/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin" >> $GITHUB_PATH
+
+          arm-none-eabi-gcc --version
+
+      # =========================
+      # BUILD DEPENDENCIES
+      # =========================
+      - name: Install build tools
         run: |
           sudo apt update
           sudo apt install -y \
-            gcc-arm-none-eabi \
-            binutils-arm-none-eabi \
-            libnewlib-arm-none-eabi \
             build-essential \
             cmake \
             git \
@@ -30,10 +46,14 @@ jobs:
 
           pip3 install lz4
 
-      - name: Configure build
+      # =========================
+      # CONFIGURE BUILD
+      # =========================
+      - name: Configure EdgeTX
         run: |
           mkdir build
           cd build
+
           cmake .. \
             -DRADIO=tx12_mk2 \
             -DLUA=ON \
@@ -45,18 +65,27 @@ jobs:
             -DSOUND=ON \
             -DCMAKE_BUILD_TYPE=Release
 
+      # =========================
+      # BUILD FIRMWARE
+      # =========================
       - name: Build firmware
         run: |
           cd build
           make -j$(nproc) firmware
 
+      # =========================
+      # FIND OUTPUT
+      # =========================
       - name: Locate firmware
         run: |
-          echo "Firmware files:"
-          find build -name "*.bin" -type f -size +300k
+          echo "=== BUILT FILES ==="
+          find build -name "*.bin" -type f -size +200k
 
+      # =========================
+      # UPLOAD ARTIFACT
+      # =========================
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: edgetx-tx12mk2-lua
+          name: edgetx-tx12mk2-lua-v2.12
           path: build/**/*.bin
