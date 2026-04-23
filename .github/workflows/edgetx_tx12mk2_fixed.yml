@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MKII Lua Build
+name: EdgeTX TX12 MKII ELRS Stable Build (v2.12)
 
 on:
   workflow_dispatch:
@@ -9,17 +9,17 @@ jobs:
 
     steps:
 
-      # -------------------------
-      # CLEAN
-      # -------------------------
+      # =========================
+      # CLEAN WORKSPACE
+      # =========================
       - name: Clean workspace
         run: |
-          rm -rf build
+          rm -rf build toolchain
           mkdir build
 
-      # -------------------------
-      # CHECKOUT
-      # -------------------------
+      # =========================
+      # CHECKOUT EDGE TX
+      # =========================
       - name: Checkout EdgeTX
         uses: actions/checkout@v4
         with:
@@ -28,10 +28,10 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      # -------------------------
-      # TOOLCHAIN
-      # -------------------------
-      - name: Install ARM Toolchain 14.2
+      # =========================
+      # TOOLCHAIN (FIXED ARM GCC 14.2)
+      # =========================
+      - name: Install ARM GCC 14.2.rel1
         run: |
           set -e
 
@@ -42,23 +42,25 @@ jobs:
 
           tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
 
-          export PATH="$PWD/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin:$PATH"
+          TOOLCHAIN_PATH="$PWD/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin"
 
-          echo "$PWD/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin" >> $GITHUB_PATH
+          echo "$TOOLCHAIN_PATH" >> $GITHUB_PATH
+
+          export PATH="$TOOLCHAIN_PATH:$PATH"
 
           arm-none-eabi-gcc --version
 
-      # -------------------------
-      # PYTHON DEPENDENCIES (FIXED)
-      # -------------------------
+      # =========================
+      # PYTHON DEPENDENCIES
+      # =========================
       - name: Install Python deps
         run: |
           pip3 install --no-cache-dir lz4 pillow numpy
 
-      # -------------------------
-      # CONFIGURE
-      # -------------------------
-      - name: Configure
+      # =========================
+      # CONFIGURE (CORRECT TARGET FOR TX12 MKII)
+      # =========================
+      - name: Configure build
         run: |
           cmake -S . -B build \
             -DRADIO=tx12 \
@@ -71,25 +73,25 @@ jobs:
             -DSOUND=ON \
             -DCMAKE_BUILD_TYPE=Release
 
-      # -------------------------
-      # BUILD
-      # -------------------------
-      - name: Build
+      # =========================
+      # BUILD FIRMWARE
+      # =========================
+      - name: Build firmware
         run: |
           cmake --build build --target firmware
 
-      # -------------------------
-      # FIND BIN
-      # -------------------------
-      - name: Find firmware
+      # =========================
+      # FIND OUTPUT
+      # =========================
+      - name: Locate firmware
         run: |
           find build -name "*.bin"
 
-      # -------------------------
-      # UPLOAD
-      # -------------------------
+      # =========================
+      # UPLOAD ARTIFACT
+      # =========================
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: edgetx-tx12-lua
+          name: edgetx-tx12mk2-lua-stable
           path: build/**/*.bin
