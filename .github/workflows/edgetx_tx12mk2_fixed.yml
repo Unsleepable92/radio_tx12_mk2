@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MKII Stable Build
+name: EdgeTX TX12 MKII Lua Build
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
       # -------------------------
       - name: Clean workspace
         run: |
-          rm -rf build toolchain
+          rm -rf build
           mkdir build
 
       # -------------------------
@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 1
 
       # -------------------------
-      # TOOLCHAIN (BULLETPROOF)
+      # TOOLCHAIN (СТАБИЛЬНЫЙ)
       # -------------------------
       - name: Install ARM Toolchain 14.2
         run: |
@@ -56,20 +56,12 @@ jobs:
           pip3 install --no-cache-dir lz4
 
       # -------------------------
-      # TARGET CHECK
-      # -------------------------
-      - name: Check target
-        run: |
-          ls radio/src/targets
-          test -d radio/src/targets/tx12_mk2
-
-      # -------------------------
       # CONFIGURE
       # -------------------------
       - name: Configure
         run: |
           cmake -S . -B build \
-            -DRADIO=tx12_mk2 \
+            -DRADIO=tx12 \
             -DLUA=ON \
             -DLUA_MODEL_SCRIPTS=ON \
             -DWIDGETS=OFF \
@@ -87,7 +79,7 @@ jobs:
           cmake --build build --target firmware
 
       # -------------------------
-      # CHECK OUTPUT
+      # FIND BIN
       # -------------------------
       - name: Find firmware
         run: |
@@ -96,8 +88,8 @@ jobs:
       # -------------------------
       # UPLOAD
       # -------------------------
-      - name: Upload
+      - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: firmware
+          name: edgetx-tx12-lua
           path: build/**/*.bin
