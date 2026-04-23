@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MKII Lua Stable Build (v2.12)
+name: EdgeTX TX12 MKII Stable Build
 
 on:
   workflow_dispatch:
@@ -7,27 +7,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      WORKSPACE: ${{ github.workspace }}
-      BUILD_DIR: ${{ github.workspace }}/build
-      TOOLCHAIN_DIR: ${{ github.workspace }}/toolchain
-      TOOLCHAIN_VER: arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi
-
     steps:
 
-      # =========================
-      # CLEAN ENVIRONMENT (ANTI STATE BUGS)
-      # =========================
+      # -------------------------
+      # CLEAN
+      # -------------------------
       - name: Clean workspace
         run: |
-          rm -rf $BUILD_DIR
-          rm -rf $TOOLCHAIN_DIR
-          mkdir -p $BUILD_DIR
-          mkdir -p $TOOLCHAIN_DIR
+          rm -rf build toolchain
+          mkdir build
 
-      # =========================
-      # CHECKOUT (SHALLOW + SAFE)
-      # =========================
+      # -------------------------
+      # CHECKOUT
+      # -------------------------
       - name: Checkout EdgeTX
         uses: actions/checkout@v4
         with:
@@ -36,57 +28,47 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      # =========================
-      # TOOLCHAIN (FIXED + NO CD DEPENDENCY)
-      # =========================
-      - name: Install ARM GCC 14.2.rel1
+      # -------------------------
+      # TOOLCHAIN (BULLETPROOF)
+      # -------------------------
+      - name: Install ARM Toolchain 14.2
         run: |
+          set -e
+
           sudo apt update
-          sudo apt install -y wget xz-utils ca-certificates
+          sudo apt install -y wget xz-utils python3 python3-pip
 
-          wget -q https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/${TOOLCHAIN_VER}.tar.xz -O toolchain.tar.xz
+          wget -q https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
 
-          tar -xf toolchain.tar.xz -C $TOOLCHAIN_DIR
+          tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
 
-          TOOLCHAIN_PATH=$TOOLCHAIN_DIR/$TOOLCHAIN_VER/bin
+          export PATH="$PWD/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin:$PATH"
 
-          echo $TOOLCHAIN_PATH >> $GITHUB_PATH
-
-          export PATH=$TOOLCHAIN_PATH:$PATH
+          echo "$PWD/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin" >> $GITHUB_PATH
 
           arm-none-eabi-gcc --version
 
-      # =========================
-      # PYTHON DEPENDENCIES
-      # =========================
+      # -------------------------
+      # PYTHON DEP
+      # -------------------------
       - name: Install Python deps
         run: |
-          sudo apt install -y python3 python3-pip
           pip3 install --no-cache-dir lz4
 
-      # =========================
-      # VALIDATE TARGET (FAIL FAST SAFETY)
-      # =========================
-      - name: Validate TX12 MKII target
+      # -------------------------
+      # TARGET CHECK
+      # -------------------------
+      - name: Check target
         run: |
-          if [ ! -d "radio/src/targets" ]; then
-            echo "ERROR: radio/src/targets missing"
-            exit 1
-          fi
+          ls radio/src/targets
+          test -d radio/src/targets/tx12_mk2
 
-          if [ ! -d "radio/src/targets/tx12_mk2" ]; then
-            echo "ERROR: tx12_mk2 target not found"
-            echo "Available targets:"
-            ls radio/src/targets
-            exit 1
-          fi
-
-      # =========================
-      # CONFIGURE (CLEAN BUILD, NO CACHE LEAKS)
-      # =========================
-      - name: Configure build
+      # -------------------------
+      # CONFIGURE
+      # -------------------------
+      - name: Configure
         run: |
-          cmake -S . -B $BUILD_DIR \
+          cmake -S . -B build \
             -DRADIO=tx12_mk2 \
             -DLUA=ON \
             -DLUA_MODEL_SCRIPTS=ON \
@@ -95,37 +77,27 @@ jobs:
             -DDEBUG=OFF \
             -DVOICE=ON \
             -DSOUND=ON \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF
+            -DCMAKE_BUILD_TYPE=Release
 
-      # =========================
-      # BUILD (NO PARALLEL RISK REDUCTION)
-      # =========================
-      - name: Build firmware
+      # -------------------------
+      # BUILD
+      # -------------------------
+      - name: Build
         run: |
-          cmake --build $BUILD_DIR --target firmware
+          cmake --build build --target firmware
 
-      # =========================
-      # VERIFY OUTPUT (STRICT CHECK)
-      # =========================
-      - name: Verify firmware output
+      # -------------------------
+      # CHECK OUTPUT
+      # -------------------------
+      - name: Find firmware
         run: |
-          FILES=$(find $BUILD_DIR -type f -name "*.bin")
+          find build -name "*.bin"
 
-          if [ -z "$FILES" ]; then
-            echo "ERROR: firmware .bin not generated"
-            exit 1
-          fi
-
-          echo "Firmware generated:"
-          echo "$FILES"
-
-      # =========================
-      # UPLOAD ARTIFACT
-      # =========================
-      - name: Upload firmware
+      # -------------------------
+      # UPLOAD
+      # -------------------------
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: edgetx-tx12mk2-v2.12-lua-stable
-          path: |
-            build/**/*.bin
+          name: firmware
+          path: build/**/*.bin
