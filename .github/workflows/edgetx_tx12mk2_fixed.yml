@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 1
 
       # -------------------------
-      # TOOLCHAIN (СТАБИЛЬНЫЙ)
+      # TOOLCHAIN
       # -------------------------
       - name: Install ARM Toolchain 14.2
         run: |
@@ -49,11 +49,11 @@ jobs:
           arm-none-eabi-gcc --version
 
       # -------------------------
-      # PYTHON DEP
+      # PYTHON DEPENDENCIES (FIXED)
       # -------------------------
       - name: Install Python deps
         run: |
-          pip3 install --no-cache-dir lz4
+          pip3 install --no-cache-dir lz4 pillow numpy
 
       # -------------------------
       # CONFIGURE
