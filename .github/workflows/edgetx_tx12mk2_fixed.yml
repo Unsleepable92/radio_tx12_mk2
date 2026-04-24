@@ -10,62 +10,79 @@ jobs:
     steps:
 
       # -------------------------
+      # CLEAN
+      # -------------------------
+      - name: Clean
+        run: |
+          rm -rf build
+          mkdir build
+
+      # -------------------------
       # CHECKOUT
       # -------------------------
-      - name: Checkout EdgeTX
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           repository: EdgeTX/edgetx
           ref: v2.12.0
           submodules: recursive
-          fetch-depth: 1
 
       # -------------------------
-      # SYSTEM DEPS
+      # TOOLCHAIN (официальный пакет)
       # -------------------------
-      - name: Install system deps
+      - name: Install deps
         run: |
           sudo apt update
           sudo apt install -y \
-            git \
+            gcc-arm-none-eabi \
+            binutils-arm-none-eabi \
+            libnewlib-arm-none-eabi \
             python3 \
             python3-pip \
             cmake \
-            ninja-build \
-            build-essential \
-            gcc-arm-none-eabi \
-            libnewlib-arm-none-eabi
+            build-essential
 
       # -------------------------
-      # PYTHON DEPS
+      # PYTHON
       # -------------------------
-      - name: Install Python deps
+      - name: Python deps
         run: |
           pip3 install --no-cache-dir pillow numpy lz4
 
       # -------------------------
-      # BUILD (OFFICIAL WAY)
+      # CONFIGURE (КЛЮЧЕВОЙ МОМЕНТ)
       # -------------------------
-      - name: Build firmware (official script)
+      - name: Configure
         run: |
-          python3 tools/build.py \
-            --radio tx12-mk2 \
-            --lua \
-            --model-scripts \
-            --no-widgets
+          cmake -S . -B build \
+            -DPCB=X7 \
+            -DLUA=ON \
+            -DLUA_MODEL_SCRIPTS=ON \
+            -DWIDGETS=OFF \
+            -DTELEMETRY_LOG=OFF \
+            -DVOICE=ON \
+            -DSOUND=ON \
+            -DCMAKE_BUILD_TYPE=Release
 
       # -------------------------
-      # FIND BIN
+      # BUILD
       # -------------------------
-      - name: Find firmware
+      - name: Build
         run: |
-          find . -name "*.bin"
+          cmake --build build --target firmware
+
+      # -------------------------
+      # OUTPUT
+      # -------------------------
+      - name: Output
+        run: |
+          find build -name "*.bin"
 
       # -------------------------
       # UPLOAD
       # -------------------------
-      - name: Upload firmware
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: edgetx-tx12mk2-elrs-safe
-          path: "**/*.bin"
+          name: firmware
+          path: build/**/*.bin
