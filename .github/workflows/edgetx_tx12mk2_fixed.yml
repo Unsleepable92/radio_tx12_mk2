@@ -28,9 +28,9 @@ jobs:
           submodules: recursive
 
       # -------------------------
-      # BASE DEPS
+      # BASE + CLANG (КЛЮЧ)
       # -------------------------
-      - name: Install base deps
+      - name: Install deps
         run: |
           sudo apt update
           sudo apt install -y \
@@ -39,10 +39,12 @@ jobs:
             python3 \
             python3-pip \
             cmake \
-            build-essential
+            build-essential \
+            clang \
+            libclang-dev
 
       # -------------------------
-      # ARM TOOLCHAIN 14.2 (КРИТИЧНО)
+      # ARM TOOLCHAIN 14.2
       # -------------------------
       - name: Install ARM GCC 14.2.rel1
         run: |
@@ -55,13 +57,12 @@ jobs:
           TOOLCHAIN="$PWD/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin"
 
           echo "$TOOLCHAIN" >> $GITHUB_PATH
-
           export PATH="$TOOLCHAIN:$PATH"
 
           arm-none-eabi-gcc --version
 
       # -------------------------
-      # PYTHON DEPS (ВСЁ ЧТО НУЖНО)
+      # PYTHON
       # -------------------------
       - name: Python deps
         run: |
@@ -70,6 +71,13 @@ jobs:
             numpy \
             lz4 \
             clang
+
+      # -------------------------
+      # FIX libclang PATH (КРИТИЧНО)
+      # -------------------------
+      - name: Set libclang path
+        run: |
+          echo "LIBCLANG_PATH=/usr/lib/llvm-14/lib" >> $GITHUB_ENV
 
       # -------------------------
       # CONFIGURE
