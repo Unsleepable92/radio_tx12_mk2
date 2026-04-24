@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MKII ELRS SAFE BUILD (v2.12)
+name: EdgeTX TX12 MKII ELRS FINAL BUILD
 
 on:
   workflow_dispatch:
@@ -14,13 +14,13 @@ jobs:
       # -------------------------
       - name: Clean
         run: |
-          rm -rf build
+          rm -rf build toolchain
           mkdir build
 
       # -------------------------
       # CHECKOUT
       # -------------------------
-      - name: Checkout EdgeTX
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           repository: EdgeTX/edgetx
@@ -28,22 +28,40 @@ jobs:
           submodules: recursive
 
       # -------------------------
-      # INSTALL TOOLCHAIN
+      # INSTALL BASE DEPS
       # -------------------------
-      - name: Install deps
+      - name: Install base deps
         run: |
           sudo apt update
           sudo apt install -y \
-            gcc-arm-none-eabi \
-            binutils-arm-none-eabi \
-            libnewlib-arm-none-eabi \
+            wget \
+            xz-utils \
             python3 \
             python3-pip \
             cmake \
             build-essential
 
       # -------------------------
-      # PYTHON
+      # INSTALL TOOLCHAIN 14.2 (КРИТИЧНО)
+      # -------------------------
+      - name: Install ARM GCC 14.2.rel1
+        run: |
+          set -e
+
+          wget -q https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
+
+          tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
+
+          TOOLCHAIN="$PWD/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin"
+
+          echo "$TOOLCHAIN" >> $GITHUB_PATH
+
+          export PATH="$TOOLCHAIN:$PATH"
+
+          arm-none-eabi-gcc --version
+
+      # -------------------------
+      # PYTHON DEPS
       # -------------------------
       - name: Python deps
         run: |
@@ -84,5 +102,5 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: edgetx-tx12mk2-elrs
+          name: edgetx-tx12mk2-elrs-final
           path: build/**/*.bin
