@@ -1,4 +1,4 @@
-name: EdgeTX TX12 MKII ELRS Stable Build (v2.12)
+name: EdgeTX TX12 MKII ELRS SAFE BUILD
 
 on:
   workflow_dispatch:
@@ -9,17 +9,9 @@ jobs:
 
     steps:
 
-      # =========================
-      # CLEAN WORKSPACE
-      # =========================
-      - name: Clean workspace
-        run: |
-          rm -rf build toolchain
-          mkdir build
-
-      # =========================
-      # CHECKOUT EDGE TX
-      # =========================
+      # -------------------------
+      # CHECKOUT
+      # -------------------------
       - name: Checkout EdgeTX
         uses: actions/checkout@v4
         with:
@@ -28,70 +20,52 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      # =========================
-      # TOOLCHAIN (FIXED ARM GCC 14.2)
-      # =========================
-      - name: Install ARM GCC 14.2.rel1
+      # -------------------------
+      # SYSTEM DEPS
+      # -------------------------
+      - name: Install system deps
         run: |
-          set -e
-
           sudo apt update
-          sudo apt install -y wget xz-utils python3 python3-pip
+          sudo apt install -y \
+            git \
+            python3 \
+            python3-pip \
+            cmake \
+            ninja-build \
+            build-essential \
+            gcc-arm-none-eabi \
+            libnewlib-arm-none-eabi
 
-          wget -q https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
-
-          tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
-
-          TOOLCHAIN_PATH="$PWD/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin"
-
-          echo "$TOOLCHAIN_PATH" >> $GITHUB_PATH
-
-          export PATH="$TOOLCHAIN_PATH:$PATH"
-
-          arm-none-eabi-gcc --version
-
-      # =========================
-      # PYTHON DEPENDENCIES
-      # =========================
+      # -------------------------
+      # PYTHON DEPS
+      # -------------------------
       - name: Install Python deps
         run: |
-          pip3 install --no-cache-dir lz4 pillow numpy
+          pip3 install --no-cache-dir pillow numpy lz4
 
-      # =========================
-      # CONFIGURE (CORRECT TARGET FOR TX12 MKII)
-      # =========================
-      - name: Configure build
+      # -------------------------
+      # BUILD (OFFICIAL WAY)
+      # -------------------------
+      - name: Build firmware (official script)
         run: |
-          cmake -S . -B build \
-            -DRADIO=tx12 \
-            -DLUA=ON \
-            -DLUA_MODEL_SCRIPTS=ON \
-            -DWIDGETS=OFF \
-            -DTELEMETRY_LOG=OFF \
-            -DDEBUG=OFF \
-            -DVOICE=ON \
-            -DSOUND=ON \
-            -DCMAKE_BUILD_TYPE=Release
+          python3 tools/build.py \
+            --radio tx12-mk2 \
+            --lua \
+            --model-scripts \
+            --no-widgets
 
-      # =========================
-      # BUILD FIRMWARE
-      # =========================
-      - name: Build firmware
+      # -------------------------
+      # FIND BIN
+      # -------------------------
+      - name: Find firmware
         run: |
-          cmake --build build --target firmware
+          find . -name "*.bin"
 
-      # =========================
-      # FIND OUTPUT
-      # =========================
-      - name: Locate firmware
-        run: |
-          find build -name "*.bin"
-
-      # =========================
-      # UPLOAD ARTIFACT
-      # =========================
+      # -------------------------
+      # UPLOAD
+      # -------------------------
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: edgetx-tx12mk2-lua-stable
-          path: build/**/*.bin
+          name: edgetx-tx12mk2-elrs-safe
+          path: "**/*.bin"
